@@ -89,6 +89,6 @@ static_assert(
         nextHighestPowerOf2((size_t)2147483648ULL) == (size_t)4294967296ULL,
         "nextHighestPowerOf2");
 
-} // namespace utils
+} // namespace faiss
 } // namespace gpu
 } // namespace faiss

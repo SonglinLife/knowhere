@@ -70,7 +70,7 @@ class DataSet {
     void
     SetPid(int64_t* &&ids) {
         std::lock_guard<std::mutex> lk(mutex_);
-        data_[meta::TENSOR] = std::make_shared<Value>(std::forward<void*>(ids));
+        data_[meta::IDS] = std::make_shared<Value>(std::forward<void*>(ids));
     }
 
     int64_t*
@@ -82,13 +82,13 @@ class DataSet {
     void
     SetDis(float* &&dis) {
         std::lock_guard<std::mutex> lk(mutex_);
-        data_[meta::TENSOR] = std::make_shared<Value>(std::forward<float*>(dis));
+        data_[meta::DISTANCE] = std::make_shared<Value>(std::forward<float*>(dis));
     }
 
     float*
     GetDis() {
         std::lock_guard<std::mutex> lk(mutex_);
-        return std::any_cast<float *>(*(data_.at(meta::IDS)));
+        return std::any_cast<float *>(*(data_.at(meta::DISTANCE)));
     }
 
     void

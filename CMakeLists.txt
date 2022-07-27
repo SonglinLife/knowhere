@@ -214,7 +214,7 @@ set(KNOWHERE_UNITTEST_SRCS
 #    unittest/test_rhnsw_flat.cpp
 #    unittest/test_rhnsw_pq.cpp
 #    unittest/test_rhnsw_sq8.cpp
-#    unittest/utils.cpp
+#    unittest/faiss.cpp
         )
 
 add_executable(knowhere_test_run ${KNOWHERE_UNITTEST_SRCS})

@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include <faiss/impl/io.h>
+#include "faiss/impl/io.h"
 
 namespace knowhere {
 

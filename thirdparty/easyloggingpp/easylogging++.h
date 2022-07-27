@@ -159,7 +159,7 @@
         ELPP_INTERNAL_DEBUGGING_OUT_ERROR                                                                     \
             << "EASYLOGGING++ ASSERTION FAILED (LINE: " << __LINE__ << ") [" #expr << "] WITH MESSAGE \""     \
             << ELPP_INTERNAL_DEBUGGING_MSG(internalInfoStream.str()) << "\"" << ELPP_INTERNAL_DEBUGGING_ENDL; \
-        base::utils::abort(1, "ELPP Assertion failure, please define ELPP_DEBUG_ASSERT_FAILURE");             \
+        base::faiss::abort(1, "ELPP Assertion failure, please define ELPP_DEBUG_ASSERT_FAILURE");             \
     }
 #else
 #define ELPP_ASSERT(expr, msg)                                                                                  \
@@ -925,7 +925,7 @@ static inline bool
 hasFlag(Enum e, base::type::EnumType flag) {
     return base::utils::bitwise::And<Enum>(e, flag) > 0x0;
 }
-}  // namespace utils
+}  // namespace faiss
 namespace threading {
 #if ELPP_THREADING_ENABLED
 #if !ELPP_USE_STD_THREADING
@@ -1270,7 +1270,7 @@ class OS : base::StaticClass {
     static bool
     termSupportsColor(void);
 };
-/// @brief Contains utilities for cross-platform date/time. This class make use of el::base::utils::Str
+/// @brief Contains utilities for cross-platform date/time. This class make use of el::base::faiss::Str
 class DateTime : base::StaticClass {
  public:
     /// @brief Cross platform gettimeofday for Windows and unix platform. This can be used to determine current
@@ -1698,7 +1698,7 @@ class Utils {
         return nullptr;
     }
 };
-}  // namespace utils
+}  // namespace faiss
 }  // namespace base
 /// @brief Base of Easylogging++ friendly class
 ///
@@ -2024,7 +2024,7 @@ class Configurations : public base::utils::RegistryWithPred<Configuration, Confi
 
     /// @brief Parser used internally to parse configurations from file or text.
     ///
-    /// @detail This class makes use of base::utils::Str.
+    /// @detail This class makes use of base::faiss::Str.
     /// You should not need this unless you are working on some tool for Easylogging++
     class Parser : base::StaticClass {
      public:
@@ -3009,21 +3009,21 @@ class Storage : base::NoCopy, public base::threading::ThreadSafe {
     template <typename T>
     inline bool
     installPerformanceTrackingCallback(const std::string& id) {
-        return base::utils::Utils::installCallback<T, base::type::PerformanceTrackingCallbackPtr>(
+        return base::faiss::Utils::installCallback<T, base::type::PerformanceTrackingCallbackPtr>(
             id, &m_performanceTrackingCallbacks);
     }
 
     template <typename T>
     inline void
     uninstallPerformanceTrackingCallback(const std::string& id) {
-        base::utils::Utils::uninstallCallback<T, base::type::PerformanceTrackingCallbackPtr>(
+        base::faiss::Utils::uninstallCallback<T, base::type::PerformanceTrackingCallbackPtr>(
             id, &m_performanceTrackingCallbacks);
     }
 
     template <typename T>
     inline T*
     performanceTrackingCallback(const std::string& id) {
-        return base::utils::Utils::callback<T, base::type::PerformanceTrackingCallbackPtr>(
+        return base::faiss::Utils::callback<T, base::type::PerformanceTrackingCallbackPtr>(
             id, &m_performanceTrackingCallbacks);
     }
 #endif  // defined(ELPP_FEATURE_ALL) || defined(ELPP_FEATURE_PERFORMANCE_TRACKING)

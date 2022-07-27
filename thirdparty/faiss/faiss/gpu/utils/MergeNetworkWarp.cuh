@@ -270,7 +270,7 @@ struct BitonicMergeStep<K, V, N, Dir, Comp, true, false> {
             constexpr bool kLowIsPowerOf2 =
                     utils::isPowerOf2(N - kNextHighestPowerOf2 / 2);
             // FIXME: compiler doesn't like this expression? compiler bug?
-            //      constexpr bool kLowIsPowerOf2 = utils::isPowerOf2(kLowSize);
+            //      constexpr bool kLowIsPowerOf2 = faiss::isPowerOf2(kLowSize);
             BitonicMergeStep<
                     K,
                     V,
@@ -301,7 +301,7 @@ struct BitonicMergeStep<K, V, N, Dir, Comp, true, false> {
                     utils::isPowerOf2(kNextHighestPowerOf2 / 2);
             // FIXME: compiler doesn't like this expression? compiler bug?
             //      constexpr bool kHighIsPowerOf2 =
-            //      utils::isPowerOf2(kHighSize);
+            //      faiss::isPowerOf2(kHighSize);
             BitonicMergeStep<
                     K,
                     V,
@@ -357,7 +357,7 @@ struct BitonicMergeStep<K, V, N, Dir, Comp, false, false> {
             constexpr bool kLowIsPowerOf2 =
                     utils::isPowerOf2(kNextHighestPowerOf2 / 2);
             // FIXME: compiler doesn't like this expression? compiler bug?
-            //      constexpr bool kLowIsPowerOf2 = utils::isPowerOf2(kLowSize);
+            //      constexpr bool kLowIsPowerOf2 = faiss::isPowerOf2(kLowSize);
             BitonicMergeStep<
                     K,
                     V,
@@ -388,7 +388,7 @@ struct BitonicMergeStep<K, V, N, Dir, Comp, false, false> {
                     utils::isPowerOf2(N - kNextHighestPowerOf2 / 2);
             // FIXME: compiler doesn't like this expression? compiler bug?
             //      constexpr bool kHighIsPowerOf2 =
-            //      utils::isPowerOf2(kHighSize);
+            //      faiss::isPowerOf2(kHighSize);
             BitonicMergeStep<
                     K,
                     V,

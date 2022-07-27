@@ -2,9 +2,9 @@
 
 #include <string>
 
+#include "IndexType.h"
+#include "MetricType.h"
 #include "include/common/Bitset.h"
-#include "include/knowhere/IndexType.h"
-#include "include/knowhere/MetricType.h"
 
 namespace knowhere {
 

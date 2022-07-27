@@ -1,16 +1,17 @@
 
 
+#include "include/knowhere/vector_index/IndexIVFFlat.h"
+
+#include <faiss/IndexFlat.h>
+#include <faiss/IndexIVF.h>
+#include <faiss/IndexIVFFlat.h>
+
 #include <memory>
 #include <utility>
 #include <vector>
 
-#include <faiss/IndexIVF.h>
-#include <faiss/IndexFlat.h>
-#include <faiss/IndexIVFFlat.h>
-
-#include "include//knowhere/vector_index/FaissIVF.h"
-#include "include/knowhere/vector_index/IndexIVFFlat.h"
 #include "include/knowhere/vector_index/IndexAdapter.h"
+#include "include/knowhere/vector_index/faiss/FaissIVF.h"
 
 namespace knowhere {
 

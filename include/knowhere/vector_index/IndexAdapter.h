@@ -4,7 +4,7 @@
 
 #include "faiss/MetricType.h"
 #include "include/common/Exception.h"
-#include "include/knowhere/MetricType.h"
+#include "include/knowhere/IndexMeta/MetricType.h"
 
 namespace knowhere {
 

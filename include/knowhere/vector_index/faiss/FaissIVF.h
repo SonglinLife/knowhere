@@ -3,8 +3,8 @@
 #include "faiss/index_io.h"
 #include "include/common/BinarySet.h"
 #include "include/common/Exception.h"
-#include "include/knowhere/IndexType.h"
-#include "include/utils/FaissIO.h"
+#include "include/knowhere/IndexMeta/IndexType.h"
+#include "include/knowhere/vector_index/utils/FaissIO.h"
 
 namespace knowhere {
 

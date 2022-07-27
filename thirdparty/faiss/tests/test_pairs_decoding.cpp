@@ -24,7 +24,7 @@ namespace {
 typedef faiss::Index::idx_t idx_t;
 
 /*************************************************************
- * Test utils
+ * Test faiss
  *************************************************************/
 
 // dimension of the vectors to index

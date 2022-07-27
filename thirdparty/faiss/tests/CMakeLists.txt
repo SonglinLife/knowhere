@@ -5,7 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 ###############################################################################
-# copy from knowhere/utils/CMakeLists.txt
+# copy from knowhere/faiss/CMakeLists.txt
 set(UTILS_SRC
         ../../../knowhere/utils/distances_simd.cpp
         ../../../knowhere/utils/FaissHookFvec.cpp

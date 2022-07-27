@@ -107,7 +107,7 @@ static const char* kConfigurationComment = "##";
 static const char* kConfigurationLevel = "*";
 static const char* kConfigurationLoggerId = "--";
 }  // namespace consts
-// el::base::utils
+// el::base::faiss
 namespace utils {
 
 /// @brief Aborts application due with user-defined status
@@ -124,7 +124,7 @@ abort(int status, const std::string& reason) {
 #endif  // defined(ELPP_COMPILER_MSVC) && defined(_M_IX86) && defined(_DEBUG)
 }
 
-}  // namespace utils
+}  // namespace faiss
 }  // namespace base
 
 // el
@@ -758,7 +758,7 @@ Logger::resolveLoggerFormatSpec(void) const {
 // el::base
 namespace base {
 
-// el::base::utils
+// el::base::faiss
 namespace utils {
 
 // File
@@ -1159,7 +1159,7 @@ OS::getEnvironmentVariable(const char* variableName, const char* defaultVal, con
     if ((val == nullptr) || ((strcmp(val, "") == 0))) {
 #if ELPP_OS_UNIX && defined(ELPP_FORCE_ENV_VAR_FROM_BASH)
         // Try harder on unix-based systems
-        std::string valBash = base::utils::OS::getBashOutput(alternativeBashCommand);
+        std::string valBash = base::faiss::OS::getBashOutput(alternativeBashCommand);
         if (valBash.empty()) {
             return std::string(defaultVal);
         } else {
@@ -1455,7 +1455,7 @@ operator<<(base::type::ostream_t& os, const CommandLineArgs& c) {
     return os;
 }
 
-}  // namespace utils
+}  // namespace faiss
 
 // el::base::threading
 namespace threading {
@@ -2228,9 +2228,9 @@ Storage::~Storage(void) {
     uninstallLogDispatchCallback<base::AsyncLogDispatchCallback>(std::string("AsyncLogDispatchCallback"));
     installLogDispatchCallback<base::DefaultLogDispatchCallback>(std::string("DefaultLogDispatchCallback"));
     ELPP_INTERNAL_INFO(5, "Destroying asyncDispatchWorker");
-    base::utils::safeDelete(m_asyncDispatchWorker);
+    base::faiss::safeDelete(m_asyncDispatchWorker);
     ELPP_INTERNAL_INFO(5, "Destroying asyncLogQueue");
-    base::utils::safeDelete(m_asyncLogQueue);
+    base::faiss::safeDelete(m_asyncLogQueue);
 #endif  // ELPP_ASYNC_LOGGING
     ELPP_INTERNAL_INFO(5, "Destroying registeredHitCounters");
     base::utils::safeDelete(m_registeredHitCounters);
@@ -2291,7 +2291,7 @@ Storage::setApplicationArguments(int argc, char** argv) {
         if (ELPP_DEFAULT_LOGGING_FLAGS == 0x0) {
             m_flags = userInput;
         } else {
-            base::utils::addFlag<base::type::EnumType>(userInput, &m_flags);
+            base::faiss::addFlag<base::type::EnumType>(userInput, &m_flags);
         }
     }
 #endif  // defined(ELPP_LOGGING_FLAGS_FROM_ARG)
@@ -2390,7 +2390,7 @@ DefaultLogDispatchCallback::dispatch(base::type::string_t&& logLine) {
         else
             sysLogPriority = LOG_NOTICE;
 #if defined(ELPP_UNICODE)
-        char* line = base::utils::Str::wcharPtrToCharPtr(logLine.c_str());
+        char* line = base::faiss::Str::wcharPtrToCharPtr(logLine.c_str());
         syslog(sysLogPriority, "%s", line);
         free(line);
 #else
@@ -2511,7 +2511,7 @@ AsyncDispatchWorker::handle(AsyncLogItem* logItem) {
         else
             sysLogPriority = LOG_NOTICE;
 #if defined(ELPP_UNICODE)
-        char* line = base::utils::Str::wcharPtrToCharPtr(logLine.c_str());
+        char* line = base::faiss::Str::wcharPtrToCharPtr(logLine.c_str());
         syslog(sysLogPriority, "%s", line);
         free(line);
 #else
@@ -2839,7 +2839,7 @@ PerformanceTracker::PerformanceTracker(const std::string& blockName, base::Times
     el::Logger* loggerPtr = ELPP->registeredLoggers()->get(loggerId, false);
     m_enabled = loggerPtr != nullptr && loggerPtr->m_typedConfigurations->performanceTracking(m_level);
     if (m_enabled) {
-        base::utils::DateTime::gettimeofday(&m_startTime);
+        base::faiss::DateTime::gettimeofday(&m_startTime);
     }
 #endif  // !defined(ELPP_DISABLE_PERFORMANCE_TRACKING) && ELPP_LOGGING_ENABLED
 }
@@ -2849,7 +2849,7 @@ PerformanceTracker::~PerformanceTracker(void) {
     if (m_enabled) {
         base::threading::ScopedLock scopedLock(lock());
         if (m_scopedLog) {
-            base::utils::DateTime::gettimeofday(&m_endTime);
+            base::faiss::DateTime::gettimeofday(&m_endTime);
             base::type::string_t formattedTime = getFormattedTimeTaken();
             PerformanceTrackingData data(PerformanceTrackingData::DataType::Complete);
             data.init(this);
@@ -2872,7 +2872,7 @@ PerformanceTracker::checkpoint(const std::string& id, const char* file, base::ty
 #if !defined(ELPP_DISABLE_PERFORMANCE_TRACKING) && ELPP_LOGGING_ENABLED
     if (m_enabled) {
         base::threading::ScopedLock scopedLock(lock());
-        base::utils::DateTime::gettimeofday(&m_endTime);
+        base::faiss::DateTime::gettimeofday(&m_endTime);
         base::type::string_t formattedTime =
             m_hasChecked ? getFormattedTimeTaken(m_lastCheckpointTime) : ELPP_LITERAL("");
         PerformanceTrackingData data(PerformanceTrackingData::DataType::Checkpoint);
@@ -2890,7 +2890,7 @@ PerformanceTracker::checkpoint(const std::string& id, const char* file, base::ty
                 callback->handle(&data);
             }
         }
-        base::utils::DateTime::gettimeofday(&m_lastCheckpointTime);
+        base::faiss::DateTime::gettimeofday(&m_lastCheckpointTime);
         m_hasChecked = true;
         m_lastCheckpointId = id;
     }
@@ -2905,12 +2905,12 @@ const base::type::string_t
 PerformanceTracker::getFormattedTimeTaken(struct timeval startTime) const {
     if (ELPP->hasFlag(LoggingFlag::FixedTimeFormat)) {
         base::type::stringstream_t ss;
-        ss << base::utils::DateTime::getTimeDifference(m_endTime, startTime, m_timestampUnit) << " "
+        ss << base::faiss::DateTime::getTimeDifference(m_endTime, startTime, m_timestampUnit) << " "
            << base::consts::kTimeFormats[static_cast<base::type::EnumType>(m_timestampUnit)].unit;
         return ss.str();
     }
-    return base::utils::DateTime::formatTime(
-        base::utils::DateTime::getTimeDifference(m_endTime, startTime, m_timestampUnit), m_timestampUnit);
+    return base::faiss::DateTime::formatTime(
+        base::faiss::DateTime::getTimeDifference(m_endTime, startTime, m_timestampUnit), m_timestampUnit);
 }
 
 #endif  // defined(ELPP_FEATURE_ALL) || defined(ELPP_FEATURE_PERFORMANCE_TRACKING)
@@ -3037,7 +3037,7 @@ logCrashReason(int sig, bool stackTraceIfAvailable, Level level, const char* log
 
 static inline void
 crashAbort(int sig) {
-    base::utils::abort(sig, std::string());
+    base::faiss::abort(sig, std::string());
 }
 
 /// @brief Default application crash handler
@@ -3093,7 +3093,7 @@ Helpers::crashAbort(int sig, const char* sourceFile, unsigned int long line) {
         else
             ss << " (line number not specified)";
     }
-    base::utils::abort(sig, ss.str());
+    base::faiss::abort(sig, ss.str());
 }
 
 void

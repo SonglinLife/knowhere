@@ -4,6 +4,8 @@
 #include <utility>
 #include <vector>
 
+#include "faiss/faiss/Index.h"
+
 #include "include/common/BinarySet.h"
 #include "include/knowhere/Dataset.h"
 #include "include/knowhere/IndexMeta/IVFIndexMeta.h"
