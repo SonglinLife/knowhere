@@ -22,7 +22,7 @@ endif()
 #include(cmake/libs/libopenblas.cmake)
 find_package(BLAS REQUIRED)
 include_directories(${CMAKE_SOURCE_DIR})
-include_directories(thirdparty/easyloggingpp/src)
+include_directories(thirdparty/easyloggingpp)
 include_directories(thirdparty/faiss)
 include_directories(knowhere)
 include_directories(thirdparty)
@@ -31,6 +31,40 @@ include_directories(thirdparty/NGT/lib)
 include_directories(thirdparty/SPTAG/AnnService)
 include_directories(thirdparty/cpu_features/include)
 include_directories(thirdparty/any/include)
+
+set( CMAKE_CXX_STANDARD 17 )
+set( KNOWHERE_SOURCE_DIR ${PROJECT_SOURCE_DIR} )
+set( KNOWHERE_BINARY_DIR ${PROJECT_BINARY_DIR} )
+
+file(GLOB knowheresrc
+        ${KNOWHERE_SOURCE_DIR}/src/common/*.cpp
+        ${KNOWHERE_SOURCE_DIR}/src/utils/*.cpp
+        ${KNOWHERE_SOURCE_DIR}/src/vector_index/*.cpp
+        ${KNOWHERE_SOURCE_DIR}/include/common/*.h
+        ${KNOWHERE_SOURCE_DIR}/include/knowhere/*.h
+        ${KNOWHERE_SOURCE_DIR}/include/knowhere/IndexMeta/*.h
+        ${KNOWHERE_SOURCE_DIR}/include/knowhere/vector_index/*.h
+        ${KNOWHERE_SOURCE_DIR}/include/knowhere/vector_index/*.h
+        ${KNOWHERE_SOURCE_DIR}/include/utils/*.h
+        )
+if (NOT TARGET knowhere)
+  add_library(
+          knowhere SHARED
+          ${knowheresrc}
+  )
+  target_include_directories(knowhere PUBLIC ${KNOWHERE_SOURCE_DIR}/knowere)
+endif ()
+
+target_link_libraries(knowhere ${depend_libs})
+
+set (KNOWHERE_INCLUDE_DIRS
+        ${KNOWHERE_SOURCE_DIR}
+        ${KNOWHERE_SOURCE_DIR}/thirdparty
+        )
+
+target_include_directories(knowhere PUBLIC ${KNOWHERE_INCLUDE_DIRS})
+
+add_subdirectory(thirdparty/faiss)
 
 knowhere_file_glob(
   GLOB_RECURSE KNOWHERE_SRCS knowhere/archive/*.cpp knowhere/cache/*.cpp
@@ -126,7 +160,7 @@ if(__AARCH64)
     list(APPEND KNOWHERE_SRCS ${KNOWHERE_UTILS_SRCS})
 endif()
 
-add_library(knowhere SHARED ${KNOWHERE_SRCS})
+#add_library(knowhere SHARED ${KNOWHERE_SRCS})
 if(__X86_64)
   target_compile_options(knowhere PRIVATE $<$<COMPILE_LANGUAGE:CXX>: -msse4.2
                                           -mavx2 -mfma -mf16c>)
@@ -170,17 +204,18 @@ FetchContent_MakeAvailable(googletest)
 
 set(KNOWHERE_UNITTEST_SRCS
     #unittest/test_annoy.cpp
-    unittest/test_binaryidmap.cpp
-    unittest/test_binaryivf.cpp
-    unittest/test_hnsw.cpp
-    unittest/test_idmap.cpp
-    unittest/test_ivf.cpp
-    unittest/test_ivf_cpu_nm.cpp
-    unittest/test_ivf_hnsw.cpp
-    unittest/test_rhnsw_flat.cpp
-    unittest/test_rhnsw_pq.cpp
-    unittest/test_rhnsw_sq8.cpp
-    unittest/utils.cpp)
+#    unittest/test_binaryidmap.cpp
+#    unittest/test_binaryivf.cpp
+#    unittest/test_hnsw.cpp
+#    unittest/test_idmap.cpp
+     tests/unittest/test_ivf.cpp
+#    unittest/test_ivf_cpu_nm.cpp
+#    unittest/test_ivf_hnsw.cpp
+#    unittest/test_rhnsw_flat.cpp
+#    unittest/test_rhnsw_pq.cpp
+#    unittest/test_rhnsw_sq8.cpp
+#    unittest/utils.cpp
+        )
 
 add_executable(knowhere_test_run ${KNOWHERE_UNITTEST_SRCS})
 
