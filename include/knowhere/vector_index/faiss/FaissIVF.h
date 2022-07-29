@@ -15,7 +15,7 @@
 #include "include/common/BinarySet.h"
 #include "include/common/Exception.h"
 #include "include/knowhere/IndexMeta/IndexType.h"
-#include "include/knowhere/vector_index/utils/FaissIO.h"
+#include "FaissIO.h"
 
 namespace knowhere {
 
@@ -42,10 +42,6 @@ faiss::Index* LoadImpl(const BinarySet& binary_set, faiss::Index* &index) {
     reader.data_ = binary->data.get();
 
     index = faiss::read_index(&reader);
-}
-
-void
-SealImpl() {
 }
 
 }

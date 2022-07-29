@@ -15,28 +15,21 @@
 #include "IndexType.h"
 #include "MetricType.h"
 #include "include/common/Bitset.h"
+#include "include/common/Config.h"
 
 namespace knowhere {
 
 struct IndexMeta {
      /* index meta */
-    std::string name;
-    
     int64_t dim;
 
     int64_t count;
-    
-    int64_t size;
 
     IndexType type;
 
     IndexMode mode;
 
-    bool is_trained;
-
     MetricType metricType;
-
-    void *p_data;
 
     /**
      * search meta
@@ -49,9 +42,19 @@ struct IndexMeta {
 
      float radius;
 
-    virtual ~IndexMeta() {
+     void load(const Config& config) {
 
-    }
+     }
+
+     bool check() {
+
+     }
+
+     virtual ~IndexMeta() {
+
+     }
 };
+
+using IndexMetaPtr = std::shared_ptr<IndexMeta>;
 
 }

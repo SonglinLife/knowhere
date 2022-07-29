@@ -16,9 +16,8 @@
 #include <vector>
 
 #include "faiss/faiss/Index.h"
-
 #include "include/common/BinarySet.h"
-#include "include/knowhere/Dataset.h"
+#include "include/knowhere/DataSet.h"
 #include "include/knowhere/IndexMeta/IVFIndexMeta.h"
 #include "include/knowhere/VecIndex.h"
 
@@ -26,30 +25,39 @@ namespace knowhere {
 
 class IndexIVFFlat : public VecIndex
 {
-public:
+ public:
     IndexIVFFlat(/* args */);
-    
+
     ~IndexIVFFlat();
+
     int
-    Build(const DataSet& dataset) override;
+    Build(const DataSet& dataset, const IndexMetaPtr& meta) override;
+
     int
-    Train(const DataSet& dataset) override;
+    Train(const DataSet& dataset,  const IndexMetaPtr& meta) override;
+
     int
-    Add(const DataSet& dataset) = 0;
-    DataSet
-    Search(const DataSet& dataset, const IndexMeta& param) const override;
-    DataSet
-    SearchByRange(const DataSet& dataset, const IndexMeta& param) const override;
-    DataSet
-    GetVectorById(const DataSet& dataset, const IndexMeta& param) const override;
+    Add(const DataSet& dataset,  const IndexMetaPtr& meta) override;
+
+    VecDataResultPtr
+    Search(const DataSet& dataset, const IndexMetaPtr& param) const override;
+
+    VecDataResultPtr
+    SearchByRange(const DataSet& dataset, const IndexMetaPtr& param) const override;
+
+    VecDataResultPtr
+    GetVectorById(const DataSet& dataset, const IndexMetaPtr& param) const override;
+
     int
-    Serialization(BinarySet& binset) override;
+    Serialization(IndexMetaPtr& param) override;
+
     int
     Deserialization(const BinarySet& binset) override;
+
     int64_t
     Size() const = 0;
-private:
-    IVFIndexMeta meta;
+
+    IndexMetaPtr GetMetaPtr();
 
     std::shared_ptr<faiss::Index> index_ = nullptr;
 };

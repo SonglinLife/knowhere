@@ -53,15 +53,6 @@ class BinarySet {
         binary_map_[name] = std::move(binary);
     }
 
-    // void
-    // Append(const std::string &name, void *data, int64_t size, ID id) {
-    //    Binary binary;
-    //    binary.data = data;
-    //    binary.size = size;
-    //    binary.id = id;
-    //    binary_map_[name] = binary;
-    //}
-
     BinaryPtr
     Erase(const std::string& name) {
         BinaryPtr result = nullptr;

@@ -19,8 +19,8 @@
 #include <utility>
 #include <vector>
 
-#include "include/knowhere/vector_index/IndexAdapter.h"
 #include "include/knowhere/vector_index/faiss/FaissIVF.h"
+#include "include/knowhere/vector_index/utils/MetricTypeAdapter.h"
 
 namespace knowhere {
 
@@ -33,39 +33,38 @@ IndexIVFFlat::~IndexIVFFlat() {
 }
 
 int
-IndexIVFFlat::Build(const DataSet& dataset) {
-    Train(dataset);
-    Add(dataset);
+IndexIVFFlat::Build(const DataSet& dataset, const IndexMetaPtr& meta) {
+    Train(dataset, meta);
+    Add(dataset, meta);
 }
 
 int
-IndexIVFFlat::Train(const DataSet& dataset) {
-    faiss::MetricType metric_type = GetFaissMetricType(meta.metricType);
-    faiss::Index* coarse_quantizer = new faiss::IndexFlat(meta.dim, metric_type);
-
-    auto index = std::make_shared<faiss::IndexIVFFlat>(coarse_quantizer, meta.dim, meta.nlist, metric_type);
+IndexIVFFlat::Train(const DataSet& dataset, const IndexMetaPtr& meta) {
+    std::shared_ptr<IVFIndexMeta> metaPtr = std::dynamic_pointer_cast<IVFIndexMeta>(meta);
+    faiss::MetricType metric_type = GetFaissMetricType(meta->metricType);
+    faiss::Index* coarse_quantizer = new faiss::IndexFlat(meta->dim, metric_type);
+    auto index = std::make_shared<faiss::IndexIVFFlat>(coarse_quantizer, metaPtr->dim, metaPtr->nlist, metric_type);
     index->own_fields = true;
     index->train(dataset.GetRowCount(), reinterpret_cast<const float*>(dataset.GetTensor()));
     index_ = index;
 }
 
 int
-IndexIVFFlat::Add(const DataSet& dataset) {
+IndexIVFFlat::Add(const DataSet& dataset, const IndexMetaPtr& meta) {
     if (!index_ || !index_->is_trained) {
         KNOWHERE_THROW_MSG("index not initialize or trained");
     }
-
     index_->add(dataset.GetRowCount(), reinterpret_cast<const float*>(dataset.GetTensor()));
 }
 
-DataSet
-IndexIVFFlat::Search(const DataSet& dataset, const IndexMeta& param) const {
-    const IVFIndexMeta *searchParam = dynamic_cast<const IVFIndexMeta*>(&param);
+VecDataResultPtr
+IndexIVFFlat::Search(const DataSet& dataset, const IndexMetaPtr& param) const {
+    std::shared_ptr<IVFIndexMeta> searchConfig = std::dynamic_pointer_cast<IVFIndexMeta>(param);
     int64_t rows = dataset.GetRowCount();
-    int64_t k = searchParam -> topk;
+    int64_t k = searchConfig -> topk;
     
     auto ivf_index = dynamic_cast<faiss::IndexIVF*>(index_.get());
-    ivf_index->nprobe = std::min(searchParam->nprobe, meta.nlist);
+    ivf_index->nprobe = std::min(searchConfig->nprobe, searchConfig->nlist);
 
     auto elems = rows * k;
 
@@ -79,44 +78,50 @@ IndexIVFFlat::Search(const DataSet& dataset, const IndexMeta& param) const {
     } else {
         ivf_index->parallel_mode = 0;
     }
-    ivf_index->search(rows, static_cast<const float *>(dataset.GetTensor()), k, p_dist, p_id, searchParam->bitset);
+
+    ivf_index->search(rows, static_cast<const float *>(dataset.GetTensor()), k, p_dist, p_id, searchConfig->bitset);
+    return std::make_shared<VecDataResult>(p_id, p_dist);
 }
 
-DatasetPtr
-IndexIVFFlat::SearchByRange(const DataSet& dataset, const IndexMeta& param) const {
-    const IVFIndexMeta *searchParam = dynamic_cast<const IVFIndexMeta*>(&param);
+VecDataResultPtr
+IndexIVFFlat::SearchByRange(const DataSet& dataset, const IndexMetaPtr& param) const {
+    std::shared_ptr<IVFIndexMeta> searchConfig = std::dynamic_pointer_cast<IVFIndexMeta>(param);
 
     auto ivf_index = dynamic_cast<faiss::IndexIVF*>(index_.get());
-    ivf_index->nprobe = std::min(searchParam->nprobe, meta.nlist);
-    if (searchParam->nprobe > 1 && dataset.GetRowCount() <= 4) {
+    ivf_index->nprobe = std::min(searchConfig->nprobe, ivf_index->nlist);
+    if (searchConfig->nprobe > 1 && dataset.GetRowCount() <= 4) {
         ivf_index->parallel_mode = 1;
     } else {
         ivf_index->parallel_mode = 0;
     }
     
-    float radius = searchParam->radius;
+    float radius = searchConfig->radius;
     if (index_->metric_type == faiss::MetricType::METRIC_L2) {
         radius *= radius;
     }
 
     int64_t row = dataset.GetRowCount();
     faiss::RangeSearchResult res(row);
-    ivf_index->range_search(row, dataset.GetTensor(), radius, &res, searchParam->bitset);
+    ivf_index->range_search(row, dataset.GetTensor(), radius, &res, searchConfig->bitset);
+
+    return std::make_shared<VecDataResult>(res.labels, res.distances, res.lims);
 }
 
-DatasetPtr
-IndexIVFFlat::GetVectorById(const DataSet& dataset, const IndexMeta& param) const {
+VecDataResultPtr
+IndexIVFFlat::GetVectorById(const DataSet& dataset, const IndexMetaPtr& param) const {
+    std::shared_ptr<IVFIndexMeta> searchConfig = std::dynamic_pointer_cast<IVFIndexMeta>(param);
     float* p_x = nullptr;
-    p_x = (float*)malloc(sizeof(float) * meta.dim * dataset.GetRowCount());
+    p_x = (float*)malloc(sizeof(float) * searchConfig->dim * dataset.GetRowCount());
     auto ivf_index = dynamic_cast<faiss::IndexIVF*>(index_.get());
     ivf_index->get_vector_by_id(dataset.GetRowCount(), dataset.GetPid(), p_x);
-    return GenResultDataset(p_x);
+    return  std::make_shared<VecDataResult>(p_x);
 }
 
 int
-IndexIVFFlat::Serialization(BinarySet& binset) {
+IndexIVFFlat::Serialization(IndexMetaPtr& param) {
+    std::shared_ptr<IVFIndexMeta> config = std::dynamic_pointer_cast<IVFIndexMeta>(param);
     auto ivf_index = dynamic_cast<faiss::IndexIVF*>(index_.get());
-    SerializeImpl(ivf_index, meta.type);
+    SerializeImpl(ivf_index, config->metricType);
 }
 
 int
@@ -124,6 +129,11 @@ IndexIVFFlat::Deserialization(const BinarySet& binset) {
     faiss::Index* index;
     LoadImpl(binset, index);
     index_.reset(index);
+}
+
+IndexMetaPtr
+IndexIVFFlat::GetMetaPtr() {
+    return std::make_shared<IVFIndexMeta>();
 }
 
 }

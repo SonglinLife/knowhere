@@ -13,7 +13,8 @@
 
 #include <string>
 
-#include "Dataset.h"
+#include "DataSet.h"
+#include "VecDataResult.h"
 #include "include/common/Object.h"
 
 namespace knowhere {
@@ -22,28 +23,26 @@ class VecIndex : public Object {
     friend class VecIndexProxy;
 public:
     virtual int
-    Build(const DataSet& dataset) = 0;
+    Build(const DataSet& dataset, const IndexMetaPtr& meta) = 0;
     virtual int
-    Train(const DataSet& dataset) = 0;
+    Train(const DataSet& dataset, const IndexMetaPtr& meta) = 0;
     virtual int
-    Add(const DataSet& dataset) = 0;
-    virtual DataSet
-    Search(const DataSet& dataset, const IndexMeta& param) const = 0;
-    virtual DataSet
-    SearchByRange(const DataSet& dataset, const IndexMeta& param) const = 0;
-    virtual DataSet
-    GetVectorById(const DataSet& dataset, const IndexMeta& param) const = 0;
+    Add(const DataSet& dataset, const IndexMetaPtr& meta) = 0;
+    virtual VecDataResultPtr
+    Search(const DataSet& dataset, const IndexMetaPtr& param) const = 0;
+    virtual VecDataResultPtr
+    SearchByRange(const DataSet& dataset, const IndexMetaPtr& param) const = 0;
+    virtual VecDataResultPtr
+    GetVectorById(const DataSet& dataset, const IndexMetaPtr& param) const = 0;
     virtual int
-    Serialization(BinarySet& binset) = 0;
+    Serialization(IndexMetaPtr& param) = 0;
     virtual int
     Deserialization(const BinarySet& binset) = 0;
     virtual int64_t
     Size() const = 0;
-protected:
-    virtual IndexMeta&
-    GetMeta() const = 0;
-    virtual IndexMeta&
-    GenParam() const = 0;
+
+    virtual IndexMetaPtr
+    GetMetaPtr();
 };
 
 }

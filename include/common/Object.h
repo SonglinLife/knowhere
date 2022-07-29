@@ -30,7 +30,7 @@ class Object {
     IncRef() {
         ref_counts_.fetch_sub(1, std::memory_order_relaxed);
     };
-
+    virtual ~Object() = default;
  private:
     std::atomic_uint32_t ref_counts_ = 1;
 };

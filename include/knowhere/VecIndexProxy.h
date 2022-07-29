@@ -12,10 +12,13 @@
 #pragma once
 
 #include "VecIndex.h"
+#include "include/common/BinarySet.h"
+#include "include/common/Config.h"
+#include "include/knowhere/IndexMeta/IndexMeta.h"
 
 namespace knowhere {
 
-class VecIndexProxy {
+class VecIndexProxy final {
  public:
     VecIndexProxy(const VecIndexProxy& idx) {
         if (idx.node == nullptr) {
@@ -69,6 +72,64 @@ class VecIndexProxy {
         node->DecRef();
         if (!node->Ref())
             delete node;
+    }
+
+    void
+    Build(const DataSet& dataset, const Config& config) {
+        IndexMetaPtr metaPtr = node->GetMetaPtr();
+        metaPtr->load(config);
+        node->Build(dataset, config);
+    }
+    void
+    Train(const DataSet& dataset, const Config& config) {
+        IndexMetaPtr metaPtr = node->GetMetaPtr();
+        metaPtr->load(config);
+        node->Train(dataset, metaPtr);
+    }
+
+    void
+    Add(const DataSet& dataset, const Config& config) {
+        IndexMetaPtr metaPtr = node->GetMetaPtr();
+        metaPtr->load(config);
+        node->Train(dataset, metaPtr);
+    }
+
+    DataSet
+    Search(const DataSet& dataset, const Config& config) {
+        IndexMetaPtr metaPtr = node->GetMetaPtr();
+        metaPtr->load(config);
+        return node->Search(dataset, metaPtr);
+    }
+
+    DataSet
+    SearchByRange(const DataSet& dataset, const Config& config) {
+        IndexMetaPtr metaPtr = node->GetMetaPtr();
+        metaPtr->load(config);
+        return node->SearchByRange(dataset, metaPtr);
+    }
+
+    DataSet
+    GetVectorById(const DataSet& dataset, const Config& config) {
+        IndexMetaPtr metaPtr = node->GetMetaPtr();
+        metaPtr->load(config);
+        return node->SearchByRange(dataset, metaPtr);
+    }
+
+    int
+    Serialization(Config& config) {
+        IndexMetaPtr metaPtr = node->GetMetaPtr();
+        metaPtr->load(config);
+        return node->Serialization(metaPtr);
+    }
+
+    int
+    Deserialization(const BinarySet& binset) {
+        return node->Deserialization(binset);
+    }
+
+    int64_t
+    Size() const {
+        return node->Size();
     }
 
  private:

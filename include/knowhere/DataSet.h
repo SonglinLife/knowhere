@@ -110,13 +110,4 @@ class DataSet {
 
 using DatasetPtr = std::shared_ptr<DataSet>;
 
-DatasetPtr
-GenResultDataset(const int64_t* ids, const float* distance = nullptr, const size_t* lims = nullptr) {
-    auto ret_ds = std::make_shared<DataSet>();
-    ret_ds->SetPid(ids);
-    ret_ds->SetDis(distance);
-    ret_ds->SetLimits(lims);
-    return ret_ds;
-}
-
 }  // namespace knowhere
