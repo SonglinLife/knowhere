@@ -205,23 +205,23 @@ IndexDiskANN<T>::Prepare(const Config& config) {
     }
 
     // Load file from file manager.
-    for (auto& filename :
-         GetNecessaryFilenames(index_prefix_, metric_ == diskann::INNER_PRODUCT,
-                               prep_conf.num_nodes_to_cache > 0 && !prep_conf.use_bfs_cache, prep_conf.warm_up)) {
-        if (!LoadFile(filename)) {
-            return false;
-        }
-    }
-    for (auto& filename : GetOptionalFilenames(index_prefix_)) {
-        auto is_exist_op = file_manager_->IsExisted(filename);
-        if (!is_exist_op.has_value()) {
-            LOG_KNOWHERE_ERROR_ << "Failed to check existence of file " << filename << ".";
-            return false;
-        }
-        if (is_exist_op.value() && !LoadFile(filename)) {
-            return false;
-        }
-    }
+    // for (auto& filename :
+    //      GetNecessaryFilenames(index_prefix_, metric_ == diskann::INNER_PRODUCT,
+    //                            prep_conf.num_nodes_to_cache > 0 && !prep_conf.use_bfs_cache, prep_conf.warm_up)) {
+    //     if (!LoadFile(filename)) {
+    //         return false;
+    //     }
+    // }
+    // for (auto& filename : GetOptionalFilenames(index_prefix_)) {
+    //     auto is_exist_op = file_manager_->IsExisted(filename);
+    //     if (!is_exist_op.has_value()) {
+    //         LOG_KNOWHERE_ERROR_ << "Failed to check existence of file " << filename << ".";
+    //         return false;
+    //     }
+    //     if (is_exist_op.value() && !LoadFile(filename)) {
+    //         return false;
+    //     }
+    // }
 
     // load PQ file
     LOG_KNOWHERE_INFO_ << "Loading PQ from disk.";
@@ -334,7 +334,7 @@ IndexDiskANN<T>::Prepare(const Config& config) {
 template <typename T>
 
 DatasetPtr
-IndexDiskANN<T>::Query(const DatasetPtr& dataset_ptr, const Config& config, const faiss::BitsetView bitset) {
+    IndexDiskANN<T>::Query(const DatasetPtr& dataset_ptr, const Config& config, const faiss::BitsetView bitset) {
     CheckPreparation(is_prepared_);
 
     auto query_conf = DiskANNQueryConfig::Get(config);
