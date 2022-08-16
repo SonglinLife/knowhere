@@ -1408,6 +1408,7 @@ namespace diskann {
     _indexingQueueSize = parameters.Get<unsigned>("L");  // Search list size
     _indexingRange = parameters.Get<unsigned>("R");
     _indexingMaxC = parameters.Get<unsigned>("C");
+    const bool fast = parameters.Get<bool>("fast");
     const float last_round_alpha = parameters.Get<float>("alpha");
     unsigned    L = _indexingQueueSize;
 
@@ -1461,6 +1462,9 @@ namespace diskann {
     // random other nodes
     std::set<unsigned> unique_start_points;
     unique_start_points.insert(_ep);
+    if(fast)
+      while (unique_start_points.size() < 128)
+        unique_start_points.insert(_nd * dis(gen));
 
     std::vector<unsigned> init_ids;
     for (auto pt : unique_start_points)
@@ -1486,7 +1490,12 @@ namespace diskann {
 
       std::vector<std::vector<unsigned>> pruned_list_vector(round_size);
 
-      for (uint32_t sync_num = 0; sync_num < num_syncs; sync_num++) {
+      auto round_num_syncs = num_syncs;
+      if(fast && rnd_no == 0){
+        round_num_syncs = num_syncs * 0.05;
+      }
+
+      for (uint32_t sync_num = 0; sync_num < round_num_syncs; sync_num++) {
         size_t start_id = sync_num * round_size;
         size_t end_id =
             (std::min)(_nd + _num_frozen_pts, (sync_num + 1) * round_size);
