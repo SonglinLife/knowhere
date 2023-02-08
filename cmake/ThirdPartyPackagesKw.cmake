@@ -15,6 +15,13 @@ set(KNOWHERE_THIRDPARTY_DEPENDENCIES
         FAISS
 )
 
+if ( LINUX AND KNOWHERE_WITH_DISKANN)
+    set(KNOWHERE_THIRDPARTY_DEPENDENCIES 
+        ${KNOWHERE_THIRDPARTY_DEPENDENCIES}
+        DiskANN
+        )
+endif()
+
 message(STATUS "Using ${KNOWHERE_DEPENDENCY_SOURCE} approach to find dependencies")
 
 # For each dependency, set dependency source to global default, if unset
@@ -176,28 +183,26 @@ macro(build_openblas)
 
     set(OPENBLAS_CMAKE_ARGS
             ${EP_COMMON_CMAKE_ARGS}
-            -DVERSION=${OPENBLAS_VERSION}
             -DCMAKE_INSTALL_PREFIX=${KNOWHERE_INSTALL_PREFIX}
-            -DCMAKE_BUILD_TYPE=Release
             -DBUILD_SHARED_LIBS=ON
-            -DBUILD_STATIC_LIBS=ON
+            -DCMAKE_BUILD_TYPE=Release
             -DTARGET=CORE2
             -DDYNAMIC_ARCH=1
             -DDYNAMIC_OLDER=1
-            -DUSE_THREAD=0
-            -DUSE_OPENMP=0
-            -DFC=gfortran
-            -DCC=gcc
-            -DINTERFACE64=0
+            -DUSE_THREAD=1
+            -DUSE_OPENMP=1
             -DNUM_THREADS=128
-            -DNO_LAPACKE=0
+            -DCC=gcc
+            -DFC=gfortran
             )
+
+    set ( BLAS_MAKE_BUILD_ARGS ${MAKE_BUILD_ARGS} NO_STATIC=1 NO_LAPACK=1 NO_LAPACKE=1 )
 
     externalproject_add(openblas_ep
             URL             ${OPENBLAS_SOURCE_URL}
             URL_MD5         "28cc19a6acbf636f5aab5f10b9a0dfe1"
             CMAKE_ARGS      ${OPENBLAS_CMAKE_ARGS}
-            BUILD_COMMAND   ${MAKE} ${MAKE_BUILD_ARGS}
+            BUILD_COMMAND   ${MAKE} ${BLAS_MAKE_BUILD_ARGS}
             PREFIX          ${CMAKE_BINARY_DIR}/3rdparty_download/openblas-subbuild
             BINARY_DIR      openblas-bin
             INSTALL_DIR     ${KNOWHERE_INSTALL_PREFIX}
@@ -221,11 +226,11 @@ endmacro()
 
 if (KNOWHERE_WITH_OPENBLAS)
     if (OpenBLAS_SOURCE STREQUAL "AUTO")
+        # Protect OpenBLAS for faiss build
+        if(LINUX)
+            set (BLA_VENDOR OpenBLAS)
+        endif()
         find_package(BLAS)
-
-        message(STATUS "Knowhere openblas libraries: ${BLAS_LIBRARIES}")
-        message(STATUS "Knowhere openblas found: ${BLAS_FOUND}")
-
         if (BLAS_FOUND)
             add_library(openblas ALIAS BLAS::BLAS)
         else()
@@ -235,7 +240,9 @@ if (KNOWHERE_WITH_OPENBLAS)
     elseif (OpenBLAS_SOURCE STREQUAL "BUNDLED")
         build_openblas()
     elseif (OpenBLAS_SOURCE STREQUAL "SYSTEM")
-        set (BLA_VENDOR OpenBLAS)
+        if(LINUX)
+            set (BLA_VENDOR OpenBLAS)
+        endif()
         find_package(BLAS REQUIRED)
         add_library(openblas ALIAS BLAS::BLAS)
     endif ()

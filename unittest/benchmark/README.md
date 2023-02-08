@@ -1,51 +1,76 @@
 ## Benchmark description
 
- Binary Name | Description
--------------|------------
-benchmark_faiss | benchmark to test FAISS `Query` for IDMAP and IVF serial index types
-benchmark_knowhere_binary | benchmark to test knowhere `Query` for all binary index types
-benchmark_knowhere_binary_range | benchmark to test knowhere `QueryByRange` for all supported binary index types
-benchmark_knowhere_float | benchmark to test knowhere `Query` for all float index types
-benchmark_knowhere_float_range | benchmark to test knowhere `QueryByRange` for all supported float index types
-benchmark_knowhere_perf | benchmark to call knowhere `Query` periodically to simulate high CPU load
+### Benchmark for 'Query' for binary index types
+
+Following 1 benchmark read data from "sift-4096-hamming.hdf5"
+
+1. benchmark_knowhere_binary
+
+   benchmark to test knowhere `Query` for all binary index types
+
+### Benchmark for 'QueryByRange' for binary index types
+
+Following 1 benchmark read data from "sift-4096-hamming-range.hdf5"
+
+1. benchmark_knowhere_binary_range
+
+   benchmark to test knowhere `QueryByRange` with unified radius for all supported binary index types
+
+### Benchmark for 'Query' for float index types
+
+Following 3 benchmarks read data from "sift-128-eucliean.hdf5"
+
+1. benchmark_faiss_float
+
+   benchmark to test FAISS `Query` for IDMAP and IVF serial index types
+
+2. benchmark_knowhere_float
+
+   benchmark to test knowhere `Query` for all float index types
+
+3. benchmark_knowhere_float_qps
+
+   benchmark to test the QPS of knowhere `Query` for all float index types
+
+### Benchmark for 'QueryByRange' with unified radius for float index types
+
+Following 2 benchmark read data from "sift-128-eucliean-range.hdf5"
+
+1. benchmark_knowhere_float_range
+
+   benchmark to test knowhere `QueryByRange` with unified radius for all supported float index types
+
+2. benchmark_knowhere_float_range_qps
+
+   benchmark to test the QPS of knowhere `QueryByRange` with unified radius for all supported float index types
+
+### Benchmark for 'QueryByRange' with different radius setting for float index types
+
+Following 2 benchmark read data from "sift-128-eucliean-range-multi.hdf5"
+
+1. benchmark_knowhere_float_range_multi
+
+   benchmark to test knowhere `QueryByRange` with different radius setting for all supported float index types
+
+2. benchmark_knowhere_float_range_multi_qps
+
+   benchmark to test the QPS of knowhere `QueryByRange` with different radius setting for all supported float index types
 
 ## How to run benchmark
  
 #### Step 1:
-Download latest HDF5 from:
-  https://support.hdfgroup.org/ftp/HDF5/releases/
-
-Use following commands to build HDF5 from source and install to "/usr/local/hdf5"
-```bash
-$ cd hdf5-1.13.1
-$ ./configure --prefix=/usr/local/hdf5 --enable-fortran
-$ make -j8
-$ make check
-$ sudo make install
-```
+Run `prepare.sh`
 
 #### Step 2:
-Download HDF5 data files from:
-  https://github.com/erikbern/ann-benchmarks
-
-#### Step 3:
-Update 'knowhere/unittest/CMakeLists.txt',
-uncomment "#add_subdirectory(benchmark)".
-
-#### Step 4:
-Build Knowhere with unittest enabled: "./build.sh -t Release -u",
-all benchmark binaries will be generated.
-
-#### Step 5:
-Put HDF5 data files into the directory 'output/unittest'.
-Copy 'knowhere/unittest/benchmark/ref_log/Makefile' to 'output/unittest'.
-
-#### Step 6:
-Run benchmark test using following commands:
+Run benchmark according to `unittest/benchmark/hdf5/ref_log/Makefile`
+Example commands:
   - make test_faiss_all
   - make test_knowhere_all
   - make test_knowhere_gpu
   - make test_knowhere_range_all
+  - make test_knowhere_range_qps_all
+  - make test_knowhere_range_multi_all
+  - make test_knowhere_range_multi_qps_all
   - make test_knowhere_binary_all
   - make test_knowhere_binary_range_all
 

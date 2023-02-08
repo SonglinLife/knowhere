@@ -22,10 +22,12 @@
 #include <vector>
 
 #include "common/Exception.h"
+#include "common/Utils.h"
 #include "index/vector_index/IndexIDMAP.h"
 #include "index/vector_index/adapter/VectorAdapter.h"
 #include "index/vector_index/helpers/FaissIO.h"
 #include "index/vector_index/helpers/IndexParameter.h"
+#include "index/vector_index/helpers/RangeUtil.h"
 #ifdef KNOWHERE_GPU_VERSION
 #include "index/vector_index/gpu/IndexGPUIDMAP.h"
 #include "index/vector_index/helpers/FaissGpuResourceMgr.h"
@@ -40,20 +42,18 @@ IDMAP::Serialize(const Config& config) {
     }
 
     auto ret = SerializeImpl(index_type_);
-    Disassemble(ret, config);
     return ret;
 }
 
 void
 IDMAP::Load(const BinarySet& binary_set) {
-    Assemble(const_cast<BinarySet&>(binary_set));
     LoadImpl(binary_set, index_type_);
 }
 
 void
 IDMAP::Train(const DatasetPtr& dataset_ptr, const Config& config) {
     GET_TENSOR_DATA_DIM(dataset_ptr)
-
+    utils::SetBuildOmpThread(config);
     faiss::MetricType metric_type = GetFaissMetricType(config);
     auto index = std::make_shared<faiss::IndexFlat>(dim, metric_type);
     index_ = index;
@@ -109,6 +109,7 @@ IDMAP::Query(const DatasetPtr& dataset_ptr, const Config& config, const faiss::B
     }
     GET_TENSOR_DATA(dataset_ptr)
 
+    utils::SetQueryOmpThread(config);
     int64_t* p_id = nullptr;
     float* p_dist = nullptr;
     auto release_when_exception = [&]() {
@@ -146,7 +147,7 @@ IDMAP::QueryByRange(const DatasetPtr& dataset,
     }
     GET_TENSOR_DATA(dataset)
 
-    auto radius = GetMetaRadius(config);
+    utils::SetQueryOmpThread(config);
 
     int64_t* p_id = nullptr;
     float* p_dist = nullptr;
@@ -165,7 +166,7 @@ IDMAP::QueryByRange(const DatasetPtr& dataset,
     };
 
     try {
-        QueryByRangeImpl(rows, reinterpret_cast<const float*>(p_data), radius, p_dist, p_id, p_lims, config, bitset);
+        QueryByRangeImpl(rows, reinterpret_cast<const float*>(p_data), p_dist, p_id, p_lims, config, bitset);
         return GenResultDataset(p_id, p_dist, p_lims);
     } catch (faiss::FaissException& e) {
         release_when_exception();
@@ -210,16 +211,6 @@ IDMAP::CopyCpuToGpu(const int64_t device_id, const Config& config) {
 #endif
 }
 
-const float*
-IDMAP::GetRawVectors() {
-    try {
-        auto flat_index = dynamic_cast<faiss::IndexFlat*>(index_.get());
-        return reinterpret_cast<const float*>(flat_index->codes.data());
-    } catch (std::exception& e) {
-        KNOWHERE_THROW_MSG(e.what());
-    }
-}
-
 void
 IDMAP::QueryImpl(int64_t n,
                  const float* data,
@@ -234,30 +225,24 @@ IDMAP::QueryImpl(int64_t n,
 void
 IDMAP::QueryByRangeImpl(int64_t n,
                         const float* data,
-                        float radius,
                         float*& distances,
                         int64_t*& labels,
                         size_t*& lims,
                         const Config& config,
                         const faiss::BitsetView bitset) {
     auto idmap_index = dynamic_cast<faiss::IndexFlat*>(index_.get());
-
-    if (index_->metric_type == faiss::MetricType::METRIC_L2) {
-        radius *= radius;
-    }
+    float radius = GetMetaRadius(config);
+    bool is_ip = (idmap_index->metric_type == faiss::METRIC_INNER_PRODUCT);
 
     faiss::RangeSearchResult res(n);
     idmap_index->range_search(n, reinterpret_cast<const float*>(data), radius, &res, bitset);
 
-    distances = res.distances;
-    labels = res.labels;
-    lims = res.lims;
-
-    LOG_KNOWHERE_DEBUG_ << "Range search radius: " << radius << ", result num: " << lims[n];
-
-    res.distances = nullptr;
-    res.labels = nullptr;
-    res.lims = nullptr;
+    if (CheckKeyInConfig(config, meta::RANGE_FILTER)) {
+        float range_filter = GetMetaRangeFilter(config);
+        GetRangeSearchResult(res, is_ip, n, radius, range_filter, distances, labels, lims, bitset);
+    } else {
+        GetRangeSearchResult(res, is_ip, n, radius, distances, labels, lims);
+    }
 }
 
 }  // namespace knowhere

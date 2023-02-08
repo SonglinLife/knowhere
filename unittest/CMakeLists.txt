@@ -11,8 +11,6 @@
 
 include_directories(${KNOWHERE_SOURCE_DIR}/thirdparty)
 include_directories(${KNOWHERE_SOURCE_DIR}/thirdparty/faiss)
-include_directories(${KNOWHERE_SOURCE_DIR}/thirdparty/SPTAG/AnnService)
-include_directories(${KNOWHERE_SOURCE_DIR}/thirdparty/NGT/lib)
 include_directories(${KNOWHERE_SOURCE_DIR}/knowhere)
 include_directories(${KNOWHERE_SOURCE_DIR})
 
@@ -41,6 +39,7 @@ endif ()
 
 set( UTIL_SRCS
         ${KNOWHERE_SOURCE_DIR}/unittest/utils.cpp
+        ${KNOWHERE_SOURCE_DIR}/unittest/ThreadChecker.cpp
         )
 
 set( ALL_INDEXING_SRCS
@@ -51,6 +50,7 @@ set( ALL_INDEXING_SRCS
 set(ALL_INDEXING_SRCS
         ${ALL_INDEXING_SRCS}
         test_annoy.cpp
+        test_async.cpp
         test_binaryidmap.cpp
         test_binaryivf.cpp
         test_bruteforce.cpp
@@ -58,8 +58,6 @@ set(ALL_INDEXING_SRCS
         test_idmap.cpp
         test_ivf.cpp
         test_ivf_nm.cpp
-        test_ivf_hnsw.cpp
-        test_rhnsw.cpp
         test_vecindex.cpp
         )
 
@@ -70,36 +68,21 @@ if ( LINUX OR MSYS )
             )
 endif()
 
+if ( KNOWHERE_WITH_DISKANN ) 
+    set(ALL_INDEXING_SRCS
+            ${ALL_INDEXING_SRCS}
+            test_diskann.cpp
+            )
+    set( DEPEND_LIBS
+            ${DEPEND_LIBS}
+            stdc++fs
+            )
+endif ()
+
 if ( KNOWHERE_GPU_VERSION )
     set(ALL_INDEXING_SRCS
             ${ALL_INDEXING_SRCS}
             test_gpuresource.cpp
-            )
-endif ()
-
-if ( KNOWHERE_SUPPORT_SPTAG )
-    set( ALL_INDEXING_SRCS
-            ${ALL_INDEXING_SRCS}
-            test_sptag.cpp
-            )
-endif ()
-
-if ( KNOWHERE_SUPPORT_NGT )
-    set( ALL_INDEXING_SRCS
-            ${ALL_INDEXING_SRCS}
-            test_ngtonng.cpp
-            test_ngtpanng.cpp
-            )
-    set( DEPEND_LIBS
-            ${DEPEND_LIBS}
-            ngt
-            )
-endif ()
-
-if ( KNOWHERE_SUPPORT_NSG )
-    set( ALL_INDEXING_SRCS
-            ${ALL_INDEXING_SRCS}
-            test_nsg.cpp
             )
 endif ()
 
@@ -108,4 +91,6 @@ target_link_libraries( test_knowhere knowhere ${DEPEND_LIBS} )
 
 install(TARGETS test_knowhere DESTINATION unittest)
 
-#add_subdirectory(benchmark)
+if ( BUILD_BENCHMARK )
+    add_subdirectory(benchmark)
+endif()

@@ -28,7 +28,6 @@
 #include "knowhere/index/vector_index/gpu/IndexGPUIVF.h"
 #include "knowhere/index/vector_index/gpu/IndexGPUIVFPQ.h"
 #include "knowhere/index/vector_index/gpu/IndexGPUIVFSQ.h"
-#include "knowhere/index/vector_index/gpu/IndexIVFSQHybrid.h"
 #include "knowhere/index/vector_index/helpers/Cloner.h"
 #include "knowhere/index/vector_index/helpers/FaissGpuResourceMgr.h"
 #endif
@@ -143,7 +142,6 @@ TEST_P(IVFTest, ivf_serialize) {
 }
 
 TEST_P(IVFTest, ivf_slice) {
-    knowhere::SetMetaSliceSize(conf_, knowhere::index_file_slice_size);
     // serialize index
     index_->BuildAll(base_dataset, conf_);
     auto binaryset = index_->Serialize(conf_);
@@ -159,27 +157,36 @@ TEST_P(IVFTest, ivf_range_search_l2) {
     if (index_mode_ != knowhere::IndexMode::MODE_CPU) {
         return;
     }
-    knowhere::SetMetaMetricType(conf_, knowhere::metric::L2);
+    knowhere::MetricType metric_type = knowhere::metric::L2;
+    knowhere::SetMetaMetricType(conf_, metric_type);
 
     index_->BuildAll(base_dataset, conf_);
 
     auto qd = knowhere::GenDataset(nq, dim, xq.data());
 
-    auto test_range_search_l2 = [&](float radius, const faiss::BitsetView bitset) {
+    auto test_range_search_l2 = [&](const float range_filter, const float radius, const faiss::BitsetView bitset) {
         std::vector<int64_t> golden_labels;
         std::vector<float> golden_distances;
         std::vector<size_t> golden_lims;
-        RunFloatRangeSearchBF<CMin<float>>(golden_labels, golden_distances, golden_lims, knowhere::metric::L2,
-                                           xb.data(), nb, xq.data(), nq, dim, radius, bitset);
+        RunFloatRangeSearchBF(golden_labels, golden_distances, golden_lims, knowhere::metric::L2,
+                              xb.data(), nb, xq.data(), nq, dim, radius, range_filter, bitset);
+
+        auto adapter = knowhere::AdapterMgr::GetInstance().GetAdapter(index_type_);
+        ASSERT_TRUE(adapter->CheckRangeSearch(conf_, index_type_, index_mode_));
 
         auto result = index_->QueryByRange(qd, conf_, bitset);
-        CheckRangeSearchResult<CMin<float>>(result, nq, radius * radius, golden_labels.data(), golden_lims.data(), false);
+        CheckRangeSearchResult(result, metric_type, nq, radius, range_filter,
+                               golden_labels.data(), golden_lims.data(), false, bitset);
     };
 
-    for (float radius: {4.1f, 4.2f, 4.3f}) {
-        knowhere::SetMetaRadius(conf_, radius);
-        test_range_search_l2(radius, nullptr);
-        test_range_search_l2(radius, *bitset);
+    for (std::pair<float, float> range: {
+             std::make_pair<float, float>(0, 16.81f),
+             std::make_pair<float, float>(16.81f, 17.64f),
+             std::make_pair<float, float>(17.64f, 18.49f)}) {
+        knowhere::SetMetaRangeFilter(conf_, range.first);
+        knowhere::SetMetaRadius(conf_, range.second);
+        test_range_search_l2(range.first, range.second, nullptr);
+        test_range_search_l2(range.first, range.second, *bitset);
     }
 }
 
@@ -187,27 +194,39 @@ TEST_P(IVFTest, ivf_range_search_ip) {
     if (index_mode_ != knowhere::IndexMode::MODE_CPU) {
         return;
     }
-    knowhere::SetMetaMetricType(conf_, knowhere::metric::IP);
+    knowhere::MetricType metric_type = knowhere::metric::IP;
+    knowhere::SetMetaMetricType(conf_, metric_type);
+
+    normalize(xb.data(), nb, dim);
+    normalize(xq.data(), nq, dim);
 
     index_->BuildAll(base_dataset, conf_);
 
     auto qd = knowhere::GenDataset(nq, dim, xq.data());
 
-    auto test_range_search_ip = [&](float radius, const faiss::BitsetView bitset) {
+    auto test_range_search_ip = [&](const float range_filter, const float radius, const faiss::BitsetView bitset) {
         std::vector<int64_t> golden_labels;
         std::vector<float> golden_distances;
         std::vector<size_t> golden_lims;
-        RunFloatRangeSearchBF<CMax<float>>(golden_labels, golden_distances, golden_lims, knowhere::metric::IP,
-                                           xb.data(), nb, xq.data(), nq, dim, radius, bitset);
+        RunFloatRangeSearchBF(golden_labels, golden_distances, golden_lims, knowhere::metric::IP,
+                              xb.data(), nb, xq.data(), nq, dim, radius, range_filter, bitset);
+
+        auto adapter = knowhere::AdapterMgr::GetInstance().GetAdapter(index_type_);
+        ASSERT_TRUE(adapter->CheckRangeSearch(conf_, index_type_, index_mode_));
 
         auto result = index_->QueryByRange(qd, conf_, bitset);
-        CheckRangeSearchResult<CMax<float>>(result, nq, radius, golden_labels.data(), golden_lims.data(), false);
+        CheckRangeSearchResult(result, metric_type, nq, radius, range_filter,
+                               golden_labels.data(), golden_lims.data(), false, bitset);
     };
 
-    for (float radius: {42.0f, 43.0f, 44.0f}) {
-        knowhere::SetMetaRadius(conf_, radius);
-        test_range_search_ip(radius, nullptr);
-        test_range_search_ip(radius, *bitset);
+    for (std::pair<float, float> range: {
+        std::make_pair<float, float>(1.01f, 0.80f),
+        std::make_pair<float, float>(0.80f, 0.75f),
+        std::make_pair<float, float>(0.75f, 0.70f)}) {
+        knowhere::SetMetaRangeFilter(conf_, range.first);
+        knowhere::SetMetaRadius(conf_, range.second);
+        test_range_search_ip(range.first, range.second, nullptr);
+        test_range_search_ip(range.first, range.second, *bitset);
     }
 }
 
@@ -251,19 +270,6 @@ TEST_P(IVFTest, clone_test) {
                     auto clone_index = knowhere::cloner::CopyGpuToCpu(index_, knowhere::Config());
                 },
                 knowhere::KnowhereException);
-        }
-    }
-
-    {
-        // copy to gpu
-        if (index_type_ != knowhere::IndexEnum::INDEX_FAISS_IVFSQ8H) {
-            EXPECT_NO_THROW({
-                auto clone_index = knowhere::cloner::CopyCpuToGpu(index_, DEVICE_ID, knowhere::Config());
-                auto clone_result = clone_index->Query(query_dataset, conf_, nullptr);
-                AssertEqual(result, clone_result);
-                std::cout << "clone C <=> G [" << index_type_ << "] success" << std::endl;
-            });
-            EXPECT_ANY_THROW(knowhere::cloner::CopyCpuToGpu(index_, -1, knowhere::Config()));
         }
     }
 }
@@ -310,11 +316,6 @@ TEST_P(IVFTest, invalid_gpu_source) {
     auto invalid_conf = ParamGenerator::GetInstance().Gen(index_type_);
     knowhere::SetMetaDeviceID(invalid_conf, -1);
 
-    // if (index_type_ == knowhere::IndexEnum::INDEX_FAISS_IVFFLAT) {
-    //     null faiss index
-    //     knowhere::cloner::CopyGpuToCpu(index_, knowhere::Config());
-    // }
-
     index_->Train(base_dataset, conf_);
 
     auto ivf_index = std::dynamic_pointer_cast<knowhere::GPUIVF>(index_);
@@ -327,24 +328,4 @@ TEST_P(IVFTest, invalid_gpu_source) {
     // ASSERT_ANY_THROW(index_->Load(binaryset));
     ASSERT_ANY_THROW(index_->Train(base_dataset, invalid_conf));
 }
-
-/*
-TEST_P(IVFTest, IVFSQHybrid_test) {
-    if (index_type_ != knowhere::IndexEnum::INDEX_FAISS_IVFSQ8H) {
-        return;
-    }
-
-    knowhere::cloner::CopyGpuToCpu(index_, conf_);
-    ASSERT_ANY_THROW(knowhere::cloner::CopyCpuToGpu(index_, -1, conf_));
-    ASSERT_ANY_THROW(index_->Train(base_dataset, conf_));
-    //ASSERT_ANY_THROW(index_->CopyCpuToGpu(DEVICE_ID, conf_));
-
-    index_->Train(base_dataset, conf_);
-    auto index = std::dynamic_pointer_cast<knowhere::IVFSQHybrid>(index_);
-    ASSERT_TRUE(index != nullptr);
-    ASSERT_ANY_THROW(index->UnsetQuantizer());
-
-    ASSERT_ANY_THROW(index->SetQuantizer(nullptr));
-}
-*/
 #endif

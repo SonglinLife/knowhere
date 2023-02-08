@@ -17,6 +17,7 @@
 
 #include <faiss/utils/BinaryDistance.h>
 #include "knowhere/index/vector_index/adapter/VectorAdapter.h"
+#include "knowhere/index/vector_index/helpers/RangeUtil.h"
 #include "knowhere/utils/BitsetView.h"
 #include "knowhere/utils/distances_simd.h"
 
@@ -27,7 +28,7 @@ inline float float_vec_dist(
     const size_t dim) {
     assert(metric_type == knowhere::metric::L2 || metric_type == knowhere::metric::IP);
     if (metric_type == knowhere::metric::L2) {
-        return std::sqrt(faiss::fvec_L2sqr_ref(pa, pb, dim));
+        return faiss::fvec_L2sqr_ref(pa, pb, dim);
     } else {
         return faiss::fvec_inner_product_ref(pa, pb, dim);
     }
@@ -55,8 +56,7 @@ inline float binary_vec_dist(
     }
 }
 
-template <class C>
-void RunFloatRangeSearchBF(
+inline void RunFloatRangeSearchBF(
     std::vector<int64_t>& golden_ids,
     std::vector<float>& golden_distances,
     std::vector<size_t>& golden_lims,
@@ -67,8 +67,10 @@ void RunFloatRangeSearchBF(
     const int64_t nq,
     const int64_t dim,
     const float radius,
+    const float range_filter,
     const faiss::BitsetView bitset) {
 
+    bool is_ip = (metric_type == knowhere::metric::IP);
     std::vector<std::vector<int64_t>> ids_v(nq);
     std::vector<std::vector<float>> distances_v(nq);
 
@@ -79,7 +81,7 @@ void RunFloatRangeSearchBF(
             if (bitset.empty() || !bitset.test(j)) {
                 const float* pb = xb + j * dim;
                 auto dist = float_vec_dist(metric_type, pq, pb, dim);
-                if (C::cmp(dist, radius)) {
+                if (knowhere::distance_in_range(dist, radius, range_filter, is_ip)) {
                     ids_v[i].push_back(j);
                     distances_v[i].push_back(dist);
                 }
@@ -95,8 +97,7 @@ void RunFloatRangeSearchBF(
     }
 }
 
-template <class C>
-void RunBinaryRangeSearchBF(
+inline void RunBinaryRangeSearchBF(
     std::vector<int64_t>& golden_ids,
     std::vector<float>& golden_distances,
     std::vector<size_t>& golden_lims,
@@ -107,6 +108,7 @@ void RunBinaryRangeSearchBF(
     const int64_t nq,
     const int64_t dim,
     const float radius,
+    const float range_filter,
     const faiss::BitsetView bitset) {
 
     std::vector<std::vector<int64_t>> ids_v(nq);
@@ -119,7 +121,7 @@ void RunBinaryRangeSearchBF(
             if (bitset.empty() || !bitset.test(j)) {
                 const uint8_t* pb = xb + j * dim / 8;
                 auto dist = binary_vec_dist(metric_type, pq, pb, dim/8);
-                if (C::cmp(dist, radius)) {
+                if (knowhere::distance_in_range(dist, radius, range_filter, false)) {
                     ids_v[i].push_back(j);
                     distances_v[i].push_back(dist);
                 }
@@ -135,15 +137,18 @@ void RunBinaryRangeSearchBF(
     }
 }
 
-template <class C>
-void CheckRangeSearchResult(
+inline void CheckRangeSearchResult(
     const knowhere::DatasetPtr& result,
+    const knowhere::MetricType& metric_type,
     const int64_t nq,
     const float radius,
+    const float range_filter,
     const int64_t* golden_ids,
     const size_t* golden_lims,
-    const bool is_idmap) {
+    const bool is_idmap,
+    const faiss::BitsetView bitset) {
 
+    bool is_ip = (metric_type == knowhere::metric::IP);
     auto lims = knowhere::GetDatasetLims(result);
     auto ids = knowhere::GetDatasetIDs(result);
     auto distances = knowhere::GetDatasetDistance(result);
@@ -160,6 +165,7 @@ void CheckRangeSearchResult(
         std::unordered_set<int64_t> golden_ids_set(golden_ids + golden_lims[i],
                                                    golden_ids + golden_lims[i+1]);
         for (int j = lims[i]; j < lims[i+1]; j++) {
+            ASSERT_TRUE(bitset.empty() || !bitset.test(ids[j]));
             bool hit = (golden_ids_set.count(ids[j]) == 1);
             if (hit) {
                 recall_cnt++;
@@ -167,7 +173,7 @@ void CheckRangeSearchResult(
                 // only IDMAP always hit
                 ASSERT_TRUE(hit);
             }
-            ASSERT_TRUE(C::cmp(distances[j], radius));
+            ASSERT_TRUE(knowhere::distance_in_range(distances[j], radius, range_filter, is_ip));
         }
 
         int64_t accuracy_cnt = 0;

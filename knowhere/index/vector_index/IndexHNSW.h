@@ -12,10 +12,12 @@
 #pragma once
 
 #include <memory>
+#include <unordered_set>
 
 #include "hnswlib/hnswlib/hnswlib.h"
-
 #include "knowhere/common/Exception.h"
+#include "knowhere/common/ThreadPool.h"
+#include "knowhere/feder/HNSW.h"
 #include "knowhere/index/VecIndex.h"
 
 namespace knowhere {
@@ -25,7 +27,18 @@ class IndexHNSW : public VecIndex {
     IndexHNSW() {
         index_type_ = IndexEnum::INDEX_HNSW;
         stats = std::make_shared<LibHNSWStatistics>(index_type_);
+        pool_ = ThreadPool::GetGlobalThreadPool();
     }
+
+    IndexHNSW(const IndexHNSW& index_hnsw) = delete;
+
+    IndexHNSW&
+    operator=(const IndexHNSW& index_hnsw) = delete;
+
+    IndexHNSW(IndexHNSW&& index_hnsw) noexcept = default;
+
+    IndexHNSW&
+    operator=(IndexHNSW&& index_hnsw) noexcept = default;
 
     BinarySet
     Serialize(const Config&) override;
@@ -48,6 +61,9 @@ class IndexHNSW : public VecIndex {
     DatasetPtr
     QueryByRange(const DatasetPtr&, const Config&, const faiss::BitsetView) override;
 
+    DatasetPtr
+    GetIndexMeta(const Config&) override;
+
     int64_t
     Count() override;
 
@@ -57,13 +73,21 @@ class IndexHNSW : public VecIndex {
     int64_t
     Size() override;
 
-#if 0
+ private:
     void
-    ClearStatistics() override;
-#endif
+    QueryImpl(int64_t, const float*, int64_t, float*, int64_t*, feder::hnsw::FederResultUniq&, const Config&,
+              const faiss::BitsetView);
+
+    void
+    QueryByRangeImpl(int64_t, const float*, float*&, int64_t*&, size_t*&, feder::hnsw::FederResultUniq&, const Config&,
+                     const faiss::BitsetView);
+
+    void
+    UpdateLevelLinkList(int32_t, feder::hnsw::HNSWMeta&, std::unordered_set<int64_t>&);
 
  private:
-    std::shared_ptr<hnswlib::HierarchicalNSW<float>> index_;
+    std::shared_ptr<ThreadPool> pool_;
+    std::unique_ptr<hnswlib::HierarchicalNSW<float>> index_;
 };
 
 }  // namespace knowhere

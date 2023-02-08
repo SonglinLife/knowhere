@@ -14,7 +14,6 @@
 #include "archive/KnowhereConfig.h"
 #include "common/Log.h"
 #include "index/vector_index/Statistics.h"
-#include "index/vector_index/helpers/Slice.h"
 #include "faiss/Clustering.h"
 #include "faiss/FaissHook.h"
 #include "faiss/utils/distances.h"
@@ -22,13 +21,21 @@
 #ifdef KNOWHERE_GPU_VERSION
 #include "knowhere/index/vector_index/helpers/FaissGpuResourceMgr.h"
 #endif
-#ifdef KNOWHERE_SUPPORT_NGT
-#include "NGT/lib/NGT/defines.h"
-#endif
 
 namespace knowhere {
 
 constexpr int64_t M_BYTE = 1024 * 1024;
+
+void
+KnowhereConfig::ShowVersion() {
+#define XSTR(x) STR(x)
+#define STR(x) #x
+#ifdef KNOWHERE_VERSION
+    LOG_KNOWHERE_INFO_ << "Knowhere Version: " << XSTR(KNOWHERE_VERSION);
+#else
+    LOG_KNOWHERE_INFO_ << "Knowhere Version: " << "unknown";
+#endif
+}
 
 std::string
 KnowhereConfig::SetSimdType(const SimdType simd_type) {
@@ -63,17 +70,6 @@ KnowhereConfig::SetSimdType(const SimdType simd_type) {
     faiss::hook_init(simd_str);
     LOG_KNOWHERE_INFO_ << "FAISS hook " << simd_str;
     return simd_str;
-}
-
-void
-KnowhereConfig::SetIndexFileSliceSize(const int64_t size) {
-    LOG_KNOWHERE_INFO_ << "Set knowhere::index_file_slice_size to " << size;
-    knowhere::index_file_slice_size = size;
-}
-
-int64_t
-KnowhereConfig::GetIndexFileSliceSize() {
-    return knowhere::index_file_slice_size;
 }
 
 void
@@ -123,10 +119,6 @@ void
 KnowhereConfig::SetLogHandler() {
     faiss::LOG_ERROR_ = &knowhere::log_error_;
     faiss::LOG_WARNING_ = &knowhere::log_warning_;
-#ifdef KNOWHERE_SUPPORT_NGT
-    NGT_LOG_ERROR_ = &knowhere::log_error_;
-    NGT_LOG_WARNING_ = &knowhere::log_warning_;
-#endif
 }
 
 void

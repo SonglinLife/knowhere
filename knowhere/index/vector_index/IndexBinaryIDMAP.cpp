@@ -14,8 +14,10 @@
 #include <faiss/MetaIndexes.h>
 
 #include "common/Exception.h"
+#include "common/Utils.h"
 #include "index/vector_index/IndexBinaryIDMAP.h"
 #include "index/vector_index/adapter/VectorAdapter.h"
+#include "index/vector_index/helpers/RangeUtil.h"
 
 namespace knowhere {
 
@@ -26,13 +28,11 @@ BinaryIDMAP::Serialize(const Config& config) {
     }
 
     auto ret = SerializeImpl(index_type_);
-    Disassemble(ret, config);
     return ret;
 }
 
 void
 BinaryIDMAP::Load(const BinarySet& index_binary) {
-    Assemble(const_cast<BinarySet&>(index_binary));
     LoadImpl(index_binary, index_type_);
 }
 
@@ -76,6 +76,7 @@ BinaryIDMAP::Query(const DatasetPtr& dataset_ptr, const Config& config, const fa
     }
     GET_TENSOR_DATA(dataset_ptr)
 
+    utils::SetQueryOmpThread(config);
     int64_t* p_id = nullptr;
     float* p_dist = nullptr;
     auto release_when_exception = [&]() {
@@ -113,7 +114,7 @@ BinaryIDMAP::QueryByRange(const DatasetPtr& dataset,
     }
     GET_TENSOR_DATA(dataset)
 
-    auto radius = GetMetaRadius(config);
+    utils::SetQueryOmpThread(config);
 
     int64_t* p_id = nullptr;
     float* p_dist = nullptr;
@@ -132,7 +133,7 @@ BinaryIDMAP::QueryByRange(const DatasetPtr& dataset,
     };
 
     try {
-        QueryByRangeImpl(rows, reinterpret_cast<const uint8_t*>(p_data), radius, p_dist, p_id, p_lims, config, bitset);
+        QueryByRangeImpl(rows, reinterpret_cast<const uint8_t*>(p_data), p_dist, p_id, p_lims, config, bitset);
         return GenResultDataset(p_id, p_dist, p_lims);
     } catch (faiss::FaissException& e) {
         release_when_exception();
@@ -166,7 +167,6 @@ BinaryIDMAP::AddWithoutIds(const DatasetPtr& dataset_ptr, const Config& config) 
     }
 
     GET_TENSOR_DATA(dataset_ptr)
-
     index_->add(rows, reinterpret_cast<const uint8_t*>(p_data));
 }
 
@@ -174,19 +174,10 @@ void
 BinaryIDMAP::Train(const DatasetPtr& dataset_ptr, const Config& config) {
     GET_TENSOR_DATA_DIM(dataset_ptr)
 
+    utils::SetBuildOmpThread(config);
     faiss::MetricType metric_type = GetFaissMetricType(config);
     auto index = std::make_shared<faiss::IndexBinaryFlat>(dim, metric_type);
     index_ = index;
-}
-
-const uint8_t*
-BinaryIDMAP::GetRawVectors() {
-    try {
-        auto flat_index = dynamic_cast<faiss::IndexBinaryFlat*>(index_.get());
-        return flat_index->xb.data();
-    } catch (std::exception& e) {
-        KNOWHERE_THROW_MSG(e.what());
-    }
 }
 
 void
@@ -212,26 +203,23 @@ BinaryIDMAP::QueryImpl(int64_t n,
 void
 BinaryIDMAP::QueryByRangeImpl(int64_t n,
                               const uint8_t* data,
-                              float radius,
                               float*& distances,
                               int64_t*& labels,
                               size_t*& lims,
                               const Config& config,
                               const faiss::BitsetView bitset) {
-    auto binary_idmap_index = dynamic_cast<faiss::IndexBinaryFlat*>(index_.get());
+    auto index = dynamic_cast<faiss::IndexBinaryFlat*>(index_.get());
+    float radius = GetMetaRadius(config);
 
     faiss::RangeSearchResult res(n);
-    binary_idmap_index->range_search(n, data, radius, &res, bitset);
+    index->range_search(n, data, radius, &res, bitset);
 
-    distances = res.distances;
-    labels = res.labels;
-    lims = res.lims;
-
-    LOG_KNOWHERE_DEBUG_ << "Range search radius: " << radius << ", result num: " << lims[n];
-
-    res.distances = nullptr;
-    res.labels = nullptr;
-    res.lims = nullptr;
+    if (CheckKeyInConfig(config, meta::RANGE_FILTER)) {
+        float range_filter = GetMetaRangeFilter(config);
+        GetRangeSearchResult(res, false, n, radius, range_filter, distances, labels, lims, bitset);
+    } else {
+        GetRangeSearchResult(res, false, n, radius, distances, labels, lims);
+    }
 }
 
 }  // namespace knowhere

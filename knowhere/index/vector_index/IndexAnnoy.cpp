@@ -20,6 +20,7 @@
 
 #include "common/Exception.h"
 #include "common/Log.h"
+#include "common/Utils.h"
 #include "index/vector_index/adapter/VectorAdapter.h"
 #include "index/vector_index/helpers/FaissIO.h"
 
@@ -47,13 +48,11 @@ IndexAnnoy::Serialize(const Config& config) {
     res_set.Append("annoy_metric_type", metric_type, metric_type_length);
     res_set.Append("annoy_dim", dim_data, sizeof(uint64_t));
     res_set.Append("annoy_index_data", index_data, index_length);
-    Disassemble(res_set, config);
     return res_set;
 }
 
 void
 IndexAnnoy::Load(const BinarySet& index_binary) {
-    Assemble(const_cast<BinarySet&>(index_binary));
     auto metric_type = index_binary.GetByName("annoy_metric_type");
     metric_type_.resize(static_cast<size_t>(metric_type->size));
     memcpy(metric_type_.data(), metric_type->data.get(), static_cast<size_t>(metric_type->size));
@@ -89,6 +88,7 @@ IndexAnnoy::BuildAll(const DatasetPtr& dataset_ptr, const Config& config) {
 
     GET_TENSOR_DATA_DIM(dataset_ptr)
 
+    utils::SetBuildOmpThread(config);
     metric_type_ = GetMetaMetricType(config);
     if (metric_type_ == metric::L2) {
         index_ = std::make_shared<AnnoyIndex<int64_t, float, ::Euclidean, ::Kiss64Random, ThreadedBuildPolicy>>(dim);
@@ -101,7 +101,6 @@ IndexAnnoy::BuildAll(const DatasetPtr& dataset_ptr, const Config& config) {
     for (int i = 0; i < rows; ++i) {
         index_->add_item(i, static_cast<const float*>(p_data) + dim * i);
     }
-
     index_->build(GetIndexParamNtrees(config));
 }
 
@@ -137,30 +136,39 @@ IndexAnnoy::Query(const DatasetPtr& dataset_ptr, const Config& config, const fai
     }
 
     GET_TENSOR_DATA_DIM(dataset_ptr)
+
+    utils::SetQueryOmpThread(config);
     auto k = GetMetaTopk(config);
     auto search_k = GetIndexParamSearchK(config);
     auto p_id = new int64_t[k * rows];
     auto p_dist = new float[k * rows];
 
-#pragma omp parallel for
+    std::vector<std::future<void>> futures;
+    futures.reserve(rows);
     for (unsigned int i = 0; i < rows; ++i) {
-        std::vector<int64_t> result;
-        result.reserve(k);
-        std::vector<float> distances;
-        distances.reserve(k);
-        index_->get_nns_by_vector(static_cast<const float*>(p_data) + i * dim, k, search_k, &result, &distances,
-                                  bitset);
+        futures.push_back(pool_->push([&, index = i]() {
+            std::vector<int64_t> result;
+            result.reserve(k);
+            std::vector<float> distances;
+            distances.reserve(k);
+            index_->get_nns_by_vector(static_cast<const float*>(p_data) + index * dim, k, search_k, &result, &distances,
+                                    bitset);
 
-        size_t result_num = result.size();
-        auto local_p_id = p_id + k * i;
-        auto local_p_dist = p_dist + k * i;
-        memcpy(local_p_id, result.data(), result_num * sizeof(int64_t));
-        memcpy(local_p_dist, distances.data(), result_num * sizeof(float));
+            size_t result_num = result.size();
+            auto local_p_id = p_id + k * index;
+            auto local_p_dist = p_dist + k * index;
+            memcpy(local_p_id, result.data(), result_num * sizeof(int64_t));
+            memcpy(local_p_dist, distances.data(), result_num * sizeof(float));
 
-        for (; result_num < k; result_num++) {
-            local_p_id[result_num] = -1;
-            local_p_dist[result_num] = 1.0 / 0.0;
-        }
+            for (; result_num < k; result_num++) {
+                local_p_id[result_num] = -1;
+                local_p_dist[result_num] = 1.0 / 0.0;
+            }
+        }));
+    }
+
+    for (auto& future : futures) {
+        future.get();
     }
 
     return GenResultDataset(p_id, p_dist);

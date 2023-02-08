@@ -4,7 +4,7 @@ import json
 
 
 def test_ivf():
-    idx = knowhere.CreateIndex("ivfsq")
+    idx = knowhere.CreateIndex("ivf_sq8")
     arr = np.random.uniform(1, 5, (10000, 128)).astype("float32")
     data = knowhere.ArrayToDataSet(arr)
 

@@ -22,7 +22,6 @@
 namespace knowhere {
 
 namespace meta {
-constexpr const char* SLICE_SIZE = "SLICE_SIZE";
 constexpr const char* METRIC_TYPE = "metric_type";
 constexpr const char* DIM = "dim";
 constexpr const char* TENSOR = "tensor";
@@ -32,48 +31,32 @@ constexpr const char* DISTANCE = "distance";
 constexpr const char* LIMS = "lims";
 constexpr const char* TOPK = "k";
 constexpr const char* RADIUS = "radius";
+constexpr const char* RANGE_FILTER = "range_filter";
 constexpr const char* INPUT_IDS = "input_ids";
 constexpr const char* OUTPUT_TENSOR = "output_tensor";
 constexpr const char* DEVICE_ID = "gpu_id";
-constexpr const char* BUILD_THREAD_NUM = "build_thread_num";
-constexpr const char* QUERY_THREAD_NUM = "query_thread_num";
+constexpr const char* BUILD_INDEX_OMP_NUM = "build_index_omp_num";
+constexpr const char* QUERY_OMP_NUM = "query_omp_num";
+constexpr const char* TRACE_VISIT = "trace_visit";
+constexpr const char* JSON_INFO = "json_info";
+constexpr const char* JSON_ID_SET = "json_id_set";
 };  // namespace meta
 
 namespace indexparam {
 // IVF Params
 constexpr const char* NPROBE = "nprobe";
 constexpr const char* NLIST = "nlist";
-constexpr const char* NBITS = "nbits";   // PQ/SQ
-constexpr const char* M = "m";           // PQ param for IVFPQ
-constexpr const char* PQ_M = "PQM";      // PQ param for RHNSWPQ
+constexpr const char* NBITS = "nbits";  // PQ/SQ
+constexpr const char* M = "m";          // PQ param for IVFPQ
+constexpr const char* PQ_M = "PQM";     // PQ param for RHNSWPQ
 // HNSW Params
 constexpr const char* EFCONSTRUCTION = "efConstruction";
 constexpr const char* HNSW_M = "M";
 constexpr const char* EF = "ef";
-constexpr const char* HNSW_K = "range_k";
+constexpr const char* OVERVIEW_LEVELS = "overview_levels";
 // Annoy Params
 constexpr const char* N_TREES = "n_trees";
 constexpr const char* SEARCH_K = "search_k";
-#ifdef KNOWHERE_SUPPORT_NGT
-// NGT Params
-constexpr const char* EDGE_SIZE = "edge_size";
-// NGT Search Params
-constexpr const char* EPSILON = "epsilon";
-constexpr const char* MAX_SEARCH_EDGES = "max_search_edges";
-// NGT_PANNG Params
-constexpr const char* FORCEDLY_PRUNED_EDGE_SIZE = "forcedly_pruned_edge_size";
-constexpr const char* SELECTIVELY_PRUNED_EDGE_SIZE = "selectively_pruned_edge_size";
-// NGT_ONNG Params
-constexpr const char* OUTGOING_EDGE_SIZE = "outgoing_edge_size";
-constexpr const char* INCOMING_EDGE_SIZE = "incoming_edge_size";
-#endif
-#ifdef KNOWHERE_SUPPORT_NSG
-// NSG Params
-constexpr const char* KNNG = "knng";
-constexpr const char* SEARCH_LENGTH = "search_length";
-constexpr const char* OUT_DEGREE = "out_degree";
-constexpr const char* CANDIDATE = "candidate_pool_size";
-#endif
 }  // namespace indexparam
 
 using MetricType = std::string;
@@ -107,20 +90,17 @@ SetValueToConfig(Config& cfg, const std::string& key, const T value) {
 }
 
 #define DEFINE_CONFIG_GETTER(func_name, key, T) \
-inline T func_name(const Config& cfg) {         \
-    return GetValueFromConfig<T>(cfg, key);     \
-}
+    inline T func_name(const Config& cfg) {     \
+        return GetValueFromConfig<T>(cfg, key); \
+    }
 
-#define DEFINE_CONFIG_SETTER(func_name, key, T) \
-inline void func_name(Config& cfg, T value) {   \
-    SetValueToConfig<T>(cfg, key, (T)(value));  \
-}
+#define DEFINE_CONFIG_SETTER(func_name, key, T)    \
+    inline void func_name(Config& cfg, T value) {  \
+        SetValueToConfig<T>(cfg, key, (T)(value)); \
+    }
 
 ///////////////////////////////////////////////////////////////////////////////
 // APIs to access meta
-DEFINE_CONFIG_GETTER(GetMetaSliceSize, meta::SLICE_SIZE, int64_t)
-DEFINE_CONFIG_SETTER(SetMetaSliceSize, meta::SLICE_SIZE, int64_t)
-
 DEFINE_CONFIG_GETTER(GetMetaMetricType, meta::METRIC_TYPE, std::string)
 DEFINE_CONFIG_SETTER(SetMetaMetricType, meta::METRIC_TYPE, std::string)
 
@@ -136,14 +116,20 @@ DEFINE_CONFIG_SETTER(SetMetaTopk, meta::TOPK, int64_t)
 DEFINE_CONFIG_GETTER(GetMetaRadius, meta::RADIUS, float)
 DEFINE_CONFIG_SETTER(SetMetaRadius, meta::RADIUS, float)
 
+DEFINE_CONFIG_GETTER(GetMetaRangeFilter, meta::RANGE_FILTER, float)
+DEFINE_CONFIG_SETTER(SetMetaRangeFilter, meta::RANGE_FILTER, float)
+
 DEFINE_CONFIG_GETTER(GetMetaDeviceID, meta::DEVICE_ID, int64_t)
 DEFINE_CONFIG_SETTER(SetMetaDeviceID, meta::DEVICE_ID, int64_t)
 
-DEFINE_CONFIG_GETTER(GetMetaBuildThreadNum, meta::BUILD_THREAD_NUM, int64_t)
-DEFINE_CONFIG_SETTER(SetMetaBuildThreadNum, meta::BUILD_THREAD_NUM, int64_t)
+DEFINE_CONFIG_GETTER(GetMetaBuildIndexOmpNum, meta::BUILD_INDEX_OMP_NUM, int64_t)
+DEFINE_CONFIG_SETTER(SetMetaBuildIndexOmpNum, meta::BUILD_INDEX_OMP_NUM, int64_t)
 
-DEFINE_CONFIG_GETTER(GetMetaQueryThreadNum, meta::QUERY_THREAD_NUM, int64_t)
-DEFINE_CONFIG_SETTER(SetMetaQueryThreadNum, meta::QUERY_THREAD_NUM, int64_t)
+DEFINE_CONFIG_GETTER(GetMetaQueryOmpNum, meta::QUERY_OMP_NUM, int64_t)
+DEFINE_CONFIG_SETTER(SetMetaQueryOmpNum, meta::QUERY_OMP_NUM, int64_t)
+
+DEFINE_CONFIG_GETTER(GetMetaTraceVisit, meta::TRACE_VISIT, bool)
+DEFINE_CONFIG_SETTER(SetMetaTraceVisit, meta::TRACE_VISIT, bool)
 
 ///////////////////////////////////////////////////////////////////////////////
 // APIs to access indexparam
@@ -175,8 +161,8 @@ DEFINE_CONFIG_SETTER(SetIndexParamHNSWM, indexparam::HNSW_M, int64_t)
 DEFINE_CONFIG_GETTER(GetIndexParamEf, indexparam::EF, int64_t)
 DEFINE_CONFIG_SETTER(SetIndexParamEf, indexparam::EF, int64_t)
 
-DEFINE_CONFIG_GETTER(GetIndexParamHNSWK, indexparam::HNSW_K, int64_t)
-DEFINE_CONFIG_SETTER(SetIndexParamHNSWK, indexparam::HNSW_K, int64_t)
+DEFINE_CONFIG_GETTER(GetIndexParamOverviewLevels, indexparam::OVERVIEW_LEVELS, int64_t)
+DEFINE_CONFIG_SETTER(SetIndexParamOverviewLevels, indexparam::OVERVIEW_LEVELS, int64_t)
 
 // Annoy Params
 DEFINE_CONFIG_GETTER(GetIndexParamNtrees, indexparam::N_TREES, int64_t)

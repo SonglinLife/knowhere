@@ -44,6 +44,7 @@ class IDMAPTest : public DataGen, public TestWithParam<knowhere::IndexMode> {
             {knowhere::meta::METRIC_TYPE, knowhere::metric::L2},
             {knowhere::meta::DIM, dim},
             {knowhere::meta::TOPK, k},
+            {knowhere::meta::QUERY_OMP_NUM, QUERY_OMP_NUM},
         };
         index_mode_ = GetParam();
         index_type_ = knowhere::IndexEnum::INDEX_FAISS_IDMAP;
@@ -87,7 +88,6 @@ TEST_P(IDMAPTest, idmap_basic) {
     index_->BuildAll(base_dataset, conf_);
     EXPECT_EQ(index_->Count(), nb);
     EXPECT_EQ(index_->Dim(), dim);
-    ASSERT_TRUE(index_->GetRawVectors() != nullptr);
     ASSERT_GT(index_->Size(), 0);
 
     auto result = index_->GetVectorById(id_dataset, conf_);
@@ -167,8 +167,6 @@ TEST_P(IDMAPTest, idmap_serialize) {
 }
 
 TEST_P(IDMAPTest, idmap_slice) {
-    knowhere::SetMetaSliceSize(conf_, knowhere::index_file_slice_size);
-
     index_->BuildAll(base_dataset, conf_);
 
 #ifdef KNOWHERE_GPU_VERSION
@@ -194,58 +192,80 @@ TEST_P(IDMAPTest, idmap_slice) {
 }
 
 TEST_P(IDMAPTest, idmap_range_search_l2) {
-    knowhere::SetMetaMetricType(conf_, knowhere::metric::L2);
+    knowhere::MetricType metric_type = knowhere::metric::L2;
+    knowhere::SetMetaMetricType(conf_, metric_type);
     index_->BuildAll(base_dataset, conf_);
 
     auto qd = knowhere::GenDataset(nq, dim, xq.data());
 
-    auto test_range_search_l2 = [&](float radius, const faiss::BitsetView bitset) {
+    auto test_range_search_l2 = [&](const float range_filter, const float radius, const faiss::BitsetView bitset) {
         std::vector<int64_t> golden_labels;
         std::vector<float> golden_distances;
         std::vector<size_t> golden_lims;
-        RunFloatRangeSearchBF<CMin<float>>(golden_labels, golden_distances, golden_lims, knowhere::metric::L2,
-                                           xb.data(), nb, xq.data(), nq, dim, radius, bitset);
+        RunFloatRangeSearchBF(golden_labels, golden_distances, golden_lims, knowhere::metric::L2,
+                              xb.data(), nb, xq.data(), nq, dim, radius, range_filter, bitset);
+
+        auto adapter = knowhere::AdapterMgr::GetInstance().GetAdapter(index_type_);
+        ASSERT_TRUE(adapter->CheckRangeSearch(conf_, index_type_, index_mode_));
 
         auto result = index_->QueryByRange(qd, conf_, bitset);
-        CheckRangeSearchResult<CMin<float>>(result, nq, radius * radius, golden_labels.data(), golden_lims.data(), true);
+        CheckRangeSearchResult(result, metric_type, nq, radius, range_filter,
+                               golden_labels.data(), golden_lims.data(), true, bitset);
     };
 
     auto old_blas_threshold = knowhere::KnowhereConfig::GetBlasThreshold();
     for (int64_t blas_threshold : {0, 20}) {
         knowhere::KnowhereConfig::SetBlasThreshold(blas_threshold);
-        for (float radius: {4.1f, 4.2f, 4.3f}) {
-            knowhere::SetMetaRadius(conf_, radius);
-            test_range_search_l2(radius, nullptr);
-            test_range_search_l2(radius, *bitset);
+        for (std::pair<float, float> range: {
+                 std::make_pair<float, float>(0, 16.81f),
+                 std::make_pair<float, float>(16.81f, 17.64f),
+                 std::make_pair<float, float>(17.64f, 18.49f)}) {
+            knowhere::SetMetaRangeFilter(conf_, range.first);
+            knowhere::SetMetaRadius(conf_, range.second);
+            test_range_search_l2(range.first, range.second, nullptr);
+            test_range_search_l2(range.first, range.second, *bitset);
         }
     }
     knowhere::KnowhereConfig::SetBlasThreshold(old_blas_threshold);
 }
 
 TEST_P(IDMAPTest, idmap_range_search_ip) {
-    knowhere::SetMetaMetricType(conf_, knowhere::metric::IP);
+    knowhere::MetricType metric_type = knowhere::metric::IP;
+    knowhere::SetMetaMetricType(conf_, metric_type);
+
+    normalize(xb.data(), nb, dim);
+    normalize(xq.data(), nq, dim);
+
     index_->BuildAll(base_dataset, conf_);
 
     auto qd = knowhere::GenDataset(nq, dim, xq.data());
 
-    auto test_range_search_ip = [&](float radius, const faiss::BitsetView bitset) {
+    auto test_range_search_ip = [&](const float range_filter, const float radius, const faiss::BitsetView bitset) {
         std::vector<int64_t> golden_labels;
         std::vector<float> golden_distances;
         std::vector<size_t> golden_lims;
-        RunFloatRangeSearchBF<CMax<float>>(golden_labels, golden_distances, golden_lims, knowhere::metric::IP,
-                                           xb.data(), nb, xq.data(), nq, dim, radius, bitset);
+        RunFloatRangeSearchBF(golden_labels, golden_distances, golden_lims, knowhere::metric::IP,
+                              xb.data(), nb, xq.data(), nq, dim, radius, range_filter, bitset);
+
+        auto adapter = knowhere::AdapterMgr::GetInstance().GetAdapter(index_type_);
+        ASSERT_TRUE(adapter->CheckRangeSearch(conf_, index_type_, index_mode_));
 
         auto result = index_->QueryByRange(qd, conf_, bitset);
-        CheckRangeSearchResult<CMax<float>>(result, nq, radius, golden_labels.data(), golden_lims.data(), true);
+        CheckRangeSearchResult(result, metric_type, nq, radius, range_filter,
+                               golden_labels.data(), golden_lims.data(), true, bitset);
     };
 
     auto old_blas_threshold = knowhere::KnowhereConfig::GetBlasThreshold();
     for (int64_t blas_threshold : {0, 20}) {
         knowhere::KnowhereConfig::SetBlasThreshold(blas_threshold);
-        for (float radius: {42.0f, 43.0f, 44.0f}) {
-            knowhere::SetMetaRadius(conf_, radius);
-            test_range_search_ip(radius, nullptr);
-            test_range_search_ip(radius, *bitset);
+        for (std::pair<float, float> range: {
+            std::make_pair<float, float>(1.01f, 0.80f),
+            std::make_pair<float, float>(0.80f, 0.75f),
+            std::make_pair<float, float>(0.75f, 0.70f)}) {
+            knowhere::SetMetaRangeFilter(conf_, range.first);
+            knowhere::SetMetaRadius(conf_, range.second);
+            test_range_search_ip(range.first, range.second, nullptr);
+            test_range_search_ip(range.first, range.second, *bitset);
         }
     }
     knowhere::KnowhereConfig::SetBlasThreshold(old_blas_threshold);
@@ -258,7 +278,6 @@ TEST_P(IDMAPTest, idmap_copy) {
     index_->BuildAll(base_dataset, conf_);
     EXPECT_EQ(index_->Count(), nb);
     EXPECT_EQ(index_->Dim(), dim);
-    ASSERT_TRUE(index_->GetRawVectors() != nullptr);
     auto result = index_->Query(query_dataset, conf_, nullptr);
     AssertAnns(result, nq, k);
     // PrintResult(result, nq, k);
@@ -274,8 +293,6 @@ TEST_P(IDMAPTest, idmap_copy) {
     auto clone_result = clone_index->Query(query_dataset, conf_, nullptr);
 
     AssertAnns(clone_result, nq, k);
-    ASSERT_THROW({ std::static_pointer_cast<knowhere::GPUIDMAP>(clone_index)->GetRawVectors(); },
-                 knowhere::KnowhereException);
 
     auto binary = clone_index->Serialize(conf_);
     clone_index->Load(binary);
@@ -290,7 +307,6 @@ TEST_P(IDMAPTest, idmap_copy) {
     auto host_index = knowhere::cloner::CopyGpuToCpu(clone_index, conf_);
     auto host_result = host_index->Query(query_dataset, conf_, nullptr);
     AssertAnns(host_result, nq, k);
-    ASSERT_TRUE(std::static_pointer_cast<knowhere::IDMAP>(host_index)->GetRawVectors() != nullptr);
 
     // gpu to gpu
     auto device_index = knowhere::cloner::CopyCpuToGpu(index_, DEVICE_ID, conf_);

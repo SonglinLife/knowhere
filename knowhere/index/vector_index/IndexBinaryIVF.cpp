@@ -17,8 +17,10 @@
 
 #include "common/Exception.h"
 #include "common/Log.h"
+#include "common/Utils.h"
 #include "index/vector_index/IndexBinaryIVF.h"
 #include "index/vector_index/adapter/VectorAdapter.h"
+#include "index/vector_index/helpers/RangeUtil.h"
 
 namespace knowhere {
 
@@ -31,13 +33,11 @@ BinaryIVF::Serialize(const Config& config) {
     }
 
     auto ret = SerializeImpl(index_type_);
-    Disassemble(ret, config);
     return ret;
 }
 
 void
 BinaryIVF::Load(const BinarySet& index_binary) {
-    Assemble(const_cast<BinarySet&>(index_binary));
     LoadImpl(index_binary, index_type_);
 #if 0
     if (STATISTICS_LEVEL >= 3) {
@@ -89,6 +89,7 @@ BinaryIVF::Query(const DatasetPtr& dataset_ptr, const Config& config, const fais
 
     GET_TENSOR_DATA(dataset_ptr)
 
+    utils::SetQueryOmpThread(config);
     int64_t* p_id = nullptr;
     float* p_dist = nullptr;
     auto release_when_exception = [&]() {
@@ -126,7 +127,7 @@ BinaryIVF::QueryByRange(const DatasetPtr& dataset,
     }
     GET_TENSOR_DATA(dataset)
 
-    auto radius = GetMetaRadius(config);
+    utils::SetQueryOmpThread(config);
 
     int64_t* p_id = nullptr;
     float* p_dist = nullptr;
@@ -145,7 +146,7 @@ BinaryIVF::QueryByRange(const DatasetPtr& dataset,
     };
 
     try {
-        QueryByRangeImpl(rows, reinterpret_cast<const uint8_t*>(p_data), radius, p_dist, p_id, p_lims, config, bitset);
+        QueryByRangeImpl(rows, reinterpret_cast<const uint8_t*>(p_data), p_dist, p_id, p_lims, config, bitset);
         return GenResultDataset(p_id, p_dist, p_lims);
     } catch (faiss::FaissException& e) {
         release_when_exception();
@@ -217,6 +218,7 @@ void
 BinaryIVF::Train(const DatasetPtr& dataset_ptr, const Config& config) {
     GET_TENSOR_DATA_DIM(dataset_ptr)
 
+    utils::SetBuildOmpThread(config);
     int64_t nlist = GetIndexParamNlist(config);
     faiss::MetricType metric_type = GetFaissMetricType(config);
     faiss::IndexBinary* coarse_quantizer = new faiss::IndexBinaryFlat(dim, metric_type);
@@ -297,7 +299,6 @@ BinaryIVF::QueryImpl(int64_t n,
 void
 BinaryIVF::QueryByRangeImpl(int64_t n,
                             const uint8_t* data,
-                            float radius,
                             float*& distances,
                             int64_t*& labels,
                             size_t*& lims,
@@ -307,18 +308,16 @@ BinaryIVF::QueryByRangeImpl(int64_t n,
     auto ivf_index = dynamic_cast<faiss::IndexBinaryIVF*>(index_.get());
     ivf_index->nprobe = params->nprobe;
 
+    float radius = GetMetaRadius(config);
     faiss::RangeSearchResult res(n);
     index_->range_search(n, data, radius, &res, bitset);
 
-    distances = res.distances;
-    labels = res.labels;
-    lims = res.lims;
-
-    LOG_KNOWHERE_DEBUG_ << "Range search radius: " << radius << ", result num: " << lims[n];
-
-    res.distances = nullptr;
-    res.labels = nullptr;
-    res.lims = nullptr;
+    if (CheckKeyInConfig(config, meta::RANGE_FILTER)) {
+        float range_filter = GetMetaRangeFilter(config);
+        GetRangeSearchResult(res, false, n, radius, range_filter, distances, labels, lims, bitset);
+    } else {
+        GetRangeSearchResult(res, false, n, radius, distances, labels, lims);
+    }
 }
 
 }  // namespace knowhere

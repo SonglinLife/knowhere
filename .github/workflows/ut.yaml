@@ -23,6 +23,30 @@ on:
       - '!**.md'
 
 jobs:
+  ubuntu:
+    name: Unit Test on ubuntu-20.04
+    runs-on: ubuntu-latest
+    container:
+      image: milvusdb/knowhere-cpu-build:amd64-ubuntu20.04-20221009-f1012cd
+      env:
+        INSTALL_OPENBLAS: true
+        LD_LIBRARY_PATH: "${LD_LIBRARY_PATH}:/usr/lib"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Install Dependency
+        run: |
+          ln -s /usr/bin/python2 /usr/bin/python
+      - name: Cpplint & Clang-format check
+        run: |
+          ./build.sh -l
+      - name: Run Unittest
+        run: |
+          ./build.sh -d -t Release -u
+          if [[ -f "output/unittest/faiss_test" ]]; then
+            ./output/unittest/faiss_test
+          fi
+          ./output/unittest/test_knowhere
   ut:
     name: Unit Test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -30,7 +54,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-18.04, macos-11, centos7 ]
+        os: [ macos-11, centos7 ]
     env:
       INSTALL_OPENBLAS: true
       LD_LIBRARY_PATH: "${LD_LIBRARY_PATH}:/usr/lib"
@@ -40,17 +64,14 @@ jobs:
       - name: Install Dependency
         run: |
           ./scripts/install_deps.sh
-      - name: Cpplint & Clang-format check
-        if: ${{ matrix.os == 'ubuntu-18.04' }}
-        run: |
-          ./build.sh -l
       - name: Run Unittest
         run: |
-          ./build.sh -t Release -u
+          ./build.sh  -t Release -u
           if [[ -f "output/unittest/faiss_test" ]]; then
             ./output/unittest/faiss_test
           fi
           ./output/unittest/test_knowhere
+
 
   swig-build:
     name: Python3 SWIG compile
@@ -71,26 +92,3 @@ jobs:
         run: |
           echo "mock"
           # cd python && python3 setup.py bdist_wheel
-
-  ut-msys:
-    name: Unit Test on MSYS
-    runs-on: windows-2019
-    timeout-minutes: 60
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Configure Toolchain
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: mingw64
-      - name: Install Dependency
-        shell: msys2 {0}
-        run: |
-          ./scripts/install_deps.sh
-      - name: Run Unittest
-        shell: msys2 {0}
-        run: |
-          ./build.sh -t Release -u
-          cp -fr output/lib/*.dll output/unittest/
-          ./output/unittest/faiss_test
-          ./output/unittest/test_knowhere
